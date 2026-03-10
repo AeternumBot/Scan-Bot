@@ -58,12 +58,14 @@ const data = new SlashCommandBuilder()
   );
 
 async function autocomplete(interaction) {
-  const focused = interaction.options.getFocused().toLowerCase();
-  const choices = Projects.list()
-    .filter(p => p.name.toLowerCase().includes(focused) || p.id.includes(focused))
-    .slice(0, 25)
-    .map(p => ({ name: p.name, value: p.id }));
-  await interaction.respond(choices);
+  try {
+    const focused = interaction.options.getFocused().toLowerCase();
+    const choices = Projects.list()
+      .filter(p => p.name.toLowerCase().includes(focused) || p.id.includes(focused))
+      .slice(0, 25)
+      .map(p => ({ name: p.name, value: p.id }));
+    await interaction.respond(choices);
+  } catch { /* ignorar si la interacción ya expiró */ }
 }
 
 async function execute(interaction) {
