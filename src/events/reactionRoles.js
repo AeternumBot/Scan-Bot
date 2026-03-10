@@ -31,7 +31,12 @@ async function handleReaction(reaction, user, add) {
   if (!rolesData.messageId || reaction.message.id !== rolesData.messageId) return;
 
   const emojiStr = normalizeEmoji(reaction.emoji);
-  const entry = rolesData.roles.find(r => r.emoji === emojiStr);
+
+  // Buscar en roles de series + rol de todas las series
+  let entry = rolesData.roles.find(r => r.emoji === emojiStr);
+  if (!entry && rolesData.emojiTodas === emojiStr) {
+    entry = { roleId: '1480960597679149237', projectName: 'Todas las series' };
+  }
   if (!entry) return;
 
   const readerGuildId = process.env.DISCORD_READER_GUILD_ID;

@@ -44,6 +44,9 @@ const data = new SlashCommandBuilder()
       .addStringOption(o =>
         o.setName('imagen').setDescription('URL de imagen a adjuntar al mensaje (opcional)')
       )
+      .addStringOption(o =>
+        o.setName('emoji_todas').setDescription('Emoji para el rol "Todas las series" (opcional, se guarda para siempre)')
+      )
   )
   .addSubcommand(sub =>
     sub.setName('quitar')
@@ -150,7 +153,15 @@ async function handleMensaje(interaction) {
   if (!channel) return interaction.editReply(`❌ No se encontró el canal de roles (${ROLES_CHANNEL_ID}).`);
 
   const imagen = interaction.options.getString('imagen') || null;
-  const anunciosRoleId = '1480960597679149237';
+  const emojiTodas = interaction.options.getString('emoji_todas') || null;
+  const TODAS_ROLE_ID = '1480960597679149237';
+
+  // Guardar emoji de "todas las series" si se proporcionó
+  if (emojiTodas) {
+    rolesData.emojiTodas = emojiTodas;
+    saveRolesData(rolesData);
+  }
+  const anunciosRoleId = TODAS_ROLE_ID;
 
   // Construir el mensaje
   const lines = [];
@@ -172,10 +183,13 @@ async function handleMensaje(interaction) {
   for (const r of rolesData.roles) {
     lines.push(`${r.emoji} — **${r.projectName}**`);
   }
-  if (anunciosRoleId) {
-    lines.push('');
-    lines.push(`⏳ Recuerda: Si quieres enterarte de absolutamente todo lo que pasa en el scan (eventos, reclutamiento, noticias generales), asegúrate de tener también el rol de <@&${anunciosRoleId}>`);
+  // Entrada de "Todas las series" con su emoji
+  if (rolesData.emojiTodas) {
+    lines.push(`${rolesData.emojiTodas} — **Todas las series**`);
   }
+
+  lines.push('');
+  lines.push(`⏳ Recuerda: Si quieres enterarte de absolutamente todo lo que pasa en el scan (eventos, reclutamiento, noticias generales), asegúrate de tener también el rol de <@&${TODAS_ROLE_ID}>`);
   const content = lines.join('\n');
 
   let message = null;
@@ -206,7 +220,15 @@ async function handleMensaje(interaction) {
   }
 
   await message.reactions.removeAll().catch(() => {});
-  for (const r of rolesData.roles) {
+
+  // Reaccionar con emoji de todas las series primero si existe
+  // (se agrega al final de la lista visual pero primero en reacciones para que salga al final)
+  const allReactions = [...rolesData.roles];
+  if (emojiTodasFinal) {
+    allReactions.push({ emoji: emojiTodasFinal, roleId: TODAS_ROLE_ID, projectName: 'Todas las series', projectId: '__todas__' });
+  }
+
+  for (const r of allReactions) {
     try {
       await message.react(r.emoji);
       await new Promise(res => setTimeout(res, 500));
@@ -217,6 +239,10 @@ async function handleMensaje(interaction) {
 
   await interaction.editReply('✅ Mensaje de roles publicado/actualizado correctamente.');
 }
+
+// ── Exportar constantes para el handler de reacciones ────────────────────────
+const TODAS_ROLE_ID = '1480960597679149237';
+module.exports.TODAS_ROLE_ID = TODAS_ROLE_ID;
 
 // ── /rol quitar ───────────────────────────────────────────────────────────────
 async function handleQuitar(interaction) {
