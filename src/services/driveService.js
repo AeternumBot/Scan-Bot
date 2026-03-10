@@ -15,12 +15,26 @@ let _drive = null;
 
 function getDriveClient() {
   if (_drive) return _drive;
-  const keyPath = path.resolve(process.env.GOOGLE_SERVICE_ACCOUNT_KEY || './config/google-credentials.json');
-  if (!fs.existsSync(keyPath)) throw new Error(`Credenciales no encontradas en: ${keyPath}`);
-  const auth = new google.auth.GoogleAuth({
-    keyFile: keyPath,
-    scopes: ['https://www.googleapis.com/auth/drive.readonly'],
-  });
+
+  const keyValue = process.env.GOOGLE_SERVICE_ACCOUNT_KEY || './config/google-credentials.json';
+  let auth;
+
+  // Si el valor empieza con { es el JSON completo (Railway), si no es una ruta de archivo (local)
+  if (keyValue.trim().startsWith('{')) {
+    const credentials = JSON.parse(keyValue);
+    auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/drive.readonly'],
+    });
+  } else {
+    const keyPath = path.resolve(keyValue);
+    if (!fs.existsSync(keyPath)) throw new Error(`Credenciales no encontradas en: ${keyPath}`);
+    auth = new google.auth.GoogleAuth({
+      keyFile: keyPath,
+      scopes: ['https://www.googleapis.com/auth/drive.readonly'],
+    });
+  }
+
   _drive = google.drive({ version: 'v3', auth });
   return _drive;
 }

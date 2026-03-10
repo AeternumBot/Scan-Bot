@@ -16,16 +16,19 @@ async function execute(interaction) {
   await interaction.deferReply({ ephemeral: true });
 
   try {
-    const keyPath = path.resolve(process.env.GOOGLE_SERVICE_ACCOUNT_KEY || './config/google-credentials.json');
+    const keyValue = process.env.GOOGLE_SERVICE_ACCOUNT_KEY || './config/google-credentials.json';
+    let auth;
 
-    if (!fs.existsSync(keyPath)) {
-      return interaction.editReply(`❌ Archivo de credenciales NO encontrado en:\n\`${keyPath}\``);
+    if (keyValue.trim().startsWith('{')) {
+      const credentials = JSON.parse(keyValue);
+      auth = new google.auth.GoogleAuth({ credentials, scopes: ['https://www.googleapis.com/auth/drive.readonly'] });
+    } else {
+      const keyPath = path.resolve(keyValue);
+      if (!fs.existsSync(keyPath)) {
+        return interaction.editReply(`❌ Archivo de credenciales NO encontrado en:\n\`${keyPath}\``);
+      }
+      auth = new google.auth.GoogleAuth({ keyFile: keyPath, scopes: ['https://www.googleapis.com/auth/drive.readonly'] });
     }
-
-    const auth = new google.auth.GoogleAuth({
-      keyFile: keyPath,
-      scopes: ['https://www.googleapis.com/auth/drive.readonly'],
-    });
     const drive = google.drive({ version: 'v3', auth });
 
     const rootId = process.env.GDRIVE_ROOT_FOLDER_ID;
