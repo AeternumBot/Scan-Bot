@@ -245,7 +245,7 @@ async function handleRemove(interaction) {
   collector.on('collect', async i => {
     if (i.customId === `confirm_delete_${id}`) {
       Projects.delete(id);
-      await i.update({ content: `✅ Proyecto **${project.name}** eliminado.`, components: [] });
+      await i.update({ content: SUA.proyecto.eliminado(project.name), components: [] });
     } else {
       await i.update({ content: '❌ Cancelado.', components: [] });
     }
@@ -259,7 +259,7 @@ async function handleList(interaction) {
   const projects = Projects.list();
 
   if (!projects.length) {
-    return interaction.editReply('ℹ️ No hay proyectos configurados aún. Usa `/proyecto add` para añadir uno.');
+    return interaction.editReply(SUA.proyecto.sinProyectos);
   }
 
   const statusIcon = { ongoing: '📖', completed: '✅', hiatus: '⏸️', dropped: '❌' };
@@ -286,7 +286,7 @@ async function handleInfo(interaction) {
   const project = Projects.get(id);
 
   if (!project) {
-    return interaction.editReply({ content: `❌ Proyecto \`${id}\` no encontrado.` });
+    return interaction.editReply({ content: SUA.proyecto.noEncontrado(id) });
   }
 
   // Obtener estado de Drive
