@@ -227,8 +227,8 @@ async function handleMensaje(interaction) {
   // Reaccionar con emoji de todas las series primero si existe
   // (se agrega al final de la lista visual pero primero en reacciones para que salga al final)
   const allReactions = [...rolesData.roles];
-  if (emojiTodasFinal) {
-    allReactions.push({ emoji: emojiTodasFinal, roleId: TODAS_ROLE_ID, projectName: 'Todas las series', projectId: '__todas__' });
+  if (rolesData.emojiTodas) {
+    allReactions.push({ emoji: rolesData.emojiTodas, roleId: TODAS_ROLE_ID, projectName: 'Todas las series', projectId: '__todas__' });
   }
 
   for (const r of allReactions) {
