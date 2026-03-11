@@ -172,16 +172,16 @@ async function handleMensaje(interaction) {
   lines.push('');
   lines.push('## 🔔 ¡Elige tu Obra Favorita en Aeternum!');
   lines.push('');
-  lines.push('Entre toda nuestra biblioteca, sabemos que cada lector tiene su historia favorita. Para que no te pierdas entre las estrellas y recibas solo los avisos que te interesan, hemos activado el **Sistema de Notificaciones por Obra** 🌸');
+  lines.push('Entre toda nuestra biblioteca, sabemos que cada lector tiene su historia favorita. Para que no te pierdas entre las estrellas y recibas solo los avisos que te interesan, hemos activado el **Sistema de Notificaciones por Obra** (◕‿◕✿)');
   lines.push('');
   lines.push('**📖 ¿Cómo funciona?**');
   lines.push('');
   lines.push('Es muy sencillo, ¡te lo prometo! Solo tienes que reaccionar con el emoji de la serie que sigues. Al hacerlo:');
-  lines.push('• Recibirás una mención cada vez que salga un nuevo capítulo 💫');
-  lines.push('• No te llegará "spam" de series que no estás leyendo 🌿');
-  lines.push('• Puedes cambiar de opinión cuando quieras, solo quita tu reacción 🥺');
+  lines.push('• Recibirás una mención cada vez que salga un nuevo capítulo (ﾉ◕ヮ◕)ﾉ');
+  lines.push('• No te llegará "spam" de series que no estás leyendo (˘ω˘)');
+  lines.push('• Puedes cambiar de opinión cuando quieras, solo quita tu reacción (´• ω •`)ゞ');
   lines.push('');
-  lines.push('¡Personaliza tu experiencia y que la lectura sea eterna! 🌸');
+  lines.push('¡Personaliza tu experiencia y que la lectura sea eterna! (◕‿◕✿)');
   lines.push('');
   for (const r of rolesData.roles) {
     lines.push(`${r.emoji} — **${r.projectName}**`);

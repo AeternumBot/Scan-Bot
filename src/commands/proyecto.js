@@ -245,7 +245,7 @@ async function handleRemove(interaction) {
   collector.on('collect', async i => {
     if (i.customId === `confirm_delete_${id}`) {
       Projects.delete(id);
-      await i.update({ content: '🧪 TEST: ' + SUA.proyecto.eliminado(project.name), components: [] });
+      await i.update({ content: SUA.proyecto.eliminado(project.name), components: [] });
     } else {
       await i.update({ content: '❌ Cancelado.', components: [] });
     }
