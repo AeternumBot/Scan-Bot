@@ -39,8 +39,8 @@ async function checkProject(project) {
           chapterUrl: data.chapterUrl,
         });
 
-        await announcer.sendAnnouncement(_client, project, data, source);
-        await logger.discord(_client, 'success', 'Monitor', `Anuncio enviado: **${project.name}** cap. ${data.chapterNum} [${source}]`);
+        // Anuncio automático desactivado — usar /anunciar manualmente
+        await logger.discord(_client, 'info', 'Monitor', `Nuevo cap. detectado: **${project.name}** cap. ${data.chapterNum} [${source}] — pendiente de anuncio manual`);
       }
     } catch (err) {
       logger.error('Monitor', `Error chequeando ${project.name} [${source}]: ${err.message}`);
