@@ -284,6 +284,7 @@ function buildCreditsFromDrive(cap) {
 module.exports = {
   getProjectStatus,
   listAllProjects,
+  listFolder,
   buildChapterStatusLine,
   buildCreditsFromDrive,
   analyzeChapters,
