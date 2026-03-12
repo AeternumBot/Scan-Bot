@@ -196,7 +196,7 @@ async function execute(interaction) {
     if (global._ecchiUsadas.length > 5) global._ecchiUsadas.shift();
   }
 
-  const ecchiNote = isEcchi ? \`\n\n*\${frase}*\` : '';
+  const ecchiNote = isEcchi ? ('\n\n*' + frase + '*') : '';
 
   const mensajeFinal = (mensaje || '') + ecchiNote;
 
