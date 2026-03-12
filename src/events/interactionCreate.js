@@ -15,7 +15,7 @@ module.exports = {
         await command.execute(interaction);
       } catch (err) {
         logger.error('Interaction', `Error en /${interaction.commandName}: ${err.message}`);
-        const msg = { content: `❌ Ocurrió un error al ejecutar el comando.`, ephemeral: true };
+        const msg = { content: 'A-ay... algo salió mal al ejecutar ese comando (;ω;) ¿Podrías intentarlo de nuevo?', ephemeral: true };
         if (interaction.replied || interaction.deferred) {
           await interaction.followUp(msg).catch(() => {});
         } else {

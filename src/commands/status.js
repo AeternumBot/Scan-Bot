@@ -28,12 +28,12 @@ async function autocomplete(interaction) {
 }
 
 async function execute(interaction) {
-  await interaction.deferReply();
+  await interaction.deferReply({ ephemeral: false });
   const projectId = interaction.options.getString('proyecto');
 
   if (projectId) {
     const project = Projects.get(projectId);
-    if (!project) return interaction.editReply({ content: `❌ Proyecto \`${projectId}\` no encontrado.` });
+    if (!project) return interaction.editReply({ content: SUA.proyecto.noEncontrado(projectId) });
     return sendSingleStatus(interaction, project);
   }
   return sendAllStatus(interaction);
@@ -49,7 +49,7 @@ async function sendSingleStatus(interaction, project) {
 
   const embed = new EmbedBuilder()
     .setColor(project.color || COLORS.status)
-    .setTitle(`${catInfo.emoji} ${project.name} — Estado`)
+    .setTitle(`${catInfo.emoji} ${project.name}`)
     .setTimestamp();
 
   if (project.thumbnail) embed.setThumbnail(project.thumbnail);
@@ -109,6 +109,7 @@ async function sendSingleStatus(interaction, project) {
     { name: 'Activo',    value: project.active ? '✅ Sí' : '🔴 No',  inline: true },
   );
 
+  embed.setFooter({ text: 'Aquí está todo lo que encontré (っ˘ω˘ς)' });
   await interaction.editReply({ embeds: [embed] });
 }
 
@@ -141,10 +142,10 @@ async function sendAllStatus(interaction) {
 
   const embed = new EmbedBuilder()
     .setColor(COLORS.status)
-    .setTitle('📊 Estado general de proyectos')
+    .setTitle('📊 Proyectos activos — Estado general')
     .setDescription(lines.join('\n\n').slice(0, 4000))
     .setTimestamp()
-    .setFooter({ text: 'Usa /status <proyecto> para más detalles' });
+    .setFooter({ text: 'Revisé todo con mucho cuidado (っ˘ω˘ς) · /status <proyecto> para más detalles' });
 
   await interaction.editReply({ content: null, embeds: [embed] });
 }

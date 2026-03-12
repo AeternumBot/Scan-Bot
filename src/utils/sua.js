@@ -80,7 +80,19 @@ const SUA = {
     errorScraper: (name, fuente) => `No pude revisar **${name}** en ${fuente} esta vez (;ω;)`,
   },
 
+
+  // ── Moderación ─────────────────────────────────────────────────────────────
+  mod: {
+    sinPermiso: '...lo siento, pero no creo que tengas permiso para hacer eso (〃>_<;〃)',
+    usuarioNoEncontrado: 'No encontré a ese usuario en el servidor (´• ω •\`)ゞ',
+    noPuedo: 'A-ay... no puedo hacer eso con ese usuario, tiene más permisos que yo (;ω;)',
+    expulsado: (user, razon) => `Entendido... expulsé a **${user}** (˘ω˘)\n*Razón: ${razon}*`,
+    baneado: (user, razon) => `Ya está hecho... baneé a **${user}** (˘ω˘)\n*Razón: ${razon}*`,
+    rolDado: (user, rol) => `¡Le asigné el rol **${rol}** a **${user}**! (◕‿◕✿)`,
+    rolQuitado: (user, rol) => `Listo, le quité el rol **${rol}** a **${user}** (˘ω˘)`,
+    errorAccion: (accion) => `A-ay... no pude ${accion}. ¿Tengo los permisos necesarios? (;ω;)`,
+  },
+
 };
 
 module.exports = SUA;
-// updated
