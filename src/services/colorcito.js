@@ -98,6 +98,14 @@ async function getLatestChapter(projectUrl) {
       ? titleMatch[1].replace(',', '.')
       : String(highestNum);
 
+    // ── Tags / Géneros ────────────────────────────────────────────────────
+    const tags = [];
+    $('div.genres-content a, .manga-genres a, .tags-content a, a[href*="/genre/"], a[href*="/genero/"]').each((_, el) => {
+      const tag = $(el).text().trim();
+      if (tag) tags.push(tag.toLowerCase());
+    });
+    const isEcchi = tags.some(t => t.includes('ecchi') || t.includes('erotico') || t.includes('adulto'));
+
     return {
       projectName,
       thumbnail,
@@ -107,6 +115,8 @@ async function getLatestChapter(projectUrl) {
         ? (chapterUrl.startsWith('http') ? chapterUrl : BASE_URL + chapterUrl)
         : null,
       source: 'colorcito',
+      tags,
+      isEcchi,
     };
 
   } catch (err) {
