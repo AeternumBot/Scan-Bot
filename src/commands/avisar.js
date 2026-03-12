@@ -32,11 +32,14 @@ const data = new SlashCommandBuilder()
   );
 
 async function execute(interaction) {
-  // Solo el rol autorizado puede usarlo
-  const ALLOWED_ROLE = process.env.ANNOUNCER_ROLE_ID;
-  const hasRole = ALLOWED_ROLE
-    ? interaction.member.roles.cache.has(ALLOWED_ROLE)
-    : interaction.member.permissions.has('ManageGuild');
+  // Roles autorizados: anunciador (lectores) o mod (staff)
+  const rolesPermitidos = [
+    process.env.ANNOUNCER_ROLE_ID,
+    process.env.MOD_ROLE_ID || '1368818622750789633',
+  ].filter(Boolean);
+
+  const hasRole = rolesPermitidos.some(r => interaction.member.roles.cache.has(r))
+    || interaction.member.permissions.has('ManageGuild');
 
   if (!hasRole) {
     return interaction.reply({ content: SUA.sinPermisos, ephemeral: true });
