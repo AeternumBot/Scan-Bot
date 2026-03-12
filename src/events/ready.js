@@ -11,11 +11,25 @@ module.exports = {
     logger.success('Bot', `Conectado como ${client.user.tag}`);
     logger.info('Bot', `Sirviendo en ${client.guilds.cache.size} servidor(es)`);
 
-    // Actividad del bot
-    client.user.setPresence({
-      activities: [{ name: '📖 Monitoreando scans...', type: 3 }], // type 3 = Watching
-      status: 'online',
-    });
+    // Actividad del bot — rota cada 3 minutos
+    const estados = [
+      { name: 'los capítulos nuevos (◕‿◕✿)',      type: 3 },
+      { name: 'manga en secreto... (/ω＼)',         type: 3 },
+      { name: 'con el equipo de Aeternum',          type: 2 },
+      { name: 'al monitor de scans (っ˘ω˘ς)',       type: 3 },
+      { name: 'organizando carpetas~ (〃>_<;〃)',    type: 3 },
+      { name: 'si me mencionan... (´• ω •`)',       type: 3 },
+      { name: 'los anuncios con cariño (｡>﹏<)',    type: 3 },
+      { name: 'capítulos nuevos llegar (//>/<//)',  type: 3 },
+    ];
+    let estadoIdx = 0;
+    const setEstado = () => {
+      const e = estados[estadoIdx % estados.length];
+      client.user.setPresence({ activities: [e], status: 'online' });
+      estadoIdx++;
+    };
+    setEstado();
+    setInterval(setEstado, 3 * 60 * 1000);
 
     // Iniciar el monitor de capítulos
     monitor.start(client);
