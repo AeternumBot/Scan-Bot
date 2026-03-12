@@ -69,22 +69,27 @@ async function execute(interaction) {
 
   const content = lines.join('\n');
 
-  // ── Enviar al canal de anuncios ──────────────────────────────────────────
-  const channelId = process.env.NOTICE_CHANNEL_ID || process.env.ANNOUNCEMENT_CHANNEL_ID;
+  // ── Elegir canal según el servidor donde se ejecuta el comando ───────────
+  const STAFF_GUILD_ID  = process.env.DISCORD_GUILD_ID;
+  const READER_GUILD_ID = process.env.DISCORD_READER_GUILD_ID;
+  const STAFF_NOTICE_ID  = '1368814037743177789';
+  const READER_NOTICE_ID = process.env.NOTICE_CHANNEL_ID;
+
+  const esStaff = interaction.guildId === STAFF_GUILD_ID;
+  const channelId = esStaff ? STAFF_NOTICE_ID : READER_NOTICE_ID;
+
   if (!channelId) {
     return interaction.editReply(SUA.avisar.sinCanal);
   }
 
   let channel = null;
-  const readerGuildId = process.env.DISCORD_READER_GUILD_ID;
-  if (readerGuildId) {
+  if (esStaff) {
+    channel = await interaction.guild.channels.fetch(channelId).catch(() => null);
+  } else {
     try {
-      const guild = await interaction.client.guilds.fetch(readerGuildId);
+      const guild = await interaction.client.guilds.fetch(READER_GUILD_ID);
       channel = await guild.channels.fetch(channelId).catch(() => null);
     } catch { }
-  }
-  if (!channel) {
-    channel = await interaction.client.channels.fetch(channelId).catch(() => null);
   }
 
   if (!channel) {
