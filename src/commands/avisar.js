@@ -45,6 +45,7 @@ async function execute(interaction) {
     return interaction.reply({ content: SUA.sinPermisos, ephemeral: true });
   }
 
+  if (interaction.replied || interaction.deferred) return;
   await interaction.deferReply({ ephemeral: true });
 
   const titulo   = interaction.options.getString('titulo');
