@@ -95,9 +95,13 @@ async function execute(interaction) {
     const d = await tmo.getLatestChapter(project.sources.tmo);
     if (d) chapterUrlTmo = d.chapterUrl;
   }
+  let isEcchi = false;
   if ((fuenteOpt === 'colorcito' || fuenteOpt === 'ambas') && project.sources?.colorcito) {
     const d = await colorcito.getLatestChapter(project.sources.colorcito);
-    if (d) chapterUrlColor = d.chapterUrl;
+    if (d) {
+      chapterUrlColor = d.chapterUrl;
+      if (d.isEcchi) isEcchi = true;
+    }
   }
 
   // portadaUrl ya es la URL directa — no hay nada que resolver
@@ -148,11 +152,59 @@ async function execute(interaction) {
     return interaction.editReply({ content: SUA.anunciar.sinCanal });
   }
 
+  // Añadir nota de Sua si el proyecto tiene tag Ecchi
+  const ECCHI_FRASES = [
+    'S-s-sua no aprueba este capítulo... p-pero aquí está (〃>_<;〃)',
+    'A-ay... este capítulo es un poco... ya saben. Sua se tapa los ojos (//>/<//)',
+    'Sua deja esto aquí y se va sin mirar... (*ノωノ)',
+    'E-este... es un capítulo especial. Sua no dice nada más (//∇//)',
+    'P-para mayores de edad, dice la advertencia. Sua lo cumple sin chistar (〃ω〃)',
+    'S-sua no sabe nada de este capítulo. Nada. No lo vio. (〃>_<;〃)',
+    'E-eh... Sua solo es la mensajera, ¿de acuerdo? No la culpen (/ω＼)',
+    'A-aquí está el capítulo... Sua se esconde detrás del servidor (//∇//)',
+    'S-Sua pone esto aquí con los ojos cerrados. Con mucho cuidado. (〃ω〃)',
+    '...Sua miró sin querer y ahora está muy roja. Disfruten (*ノωノ)',
+    'E-este capítulo requiere discreción. Sua tiene mucha. Demasiada. (〃>_<;〃)',
+    'S-sua cumple con su deber aunque le cueste la tranquilidad (//>/<//)',
+    'A-ay... el equipo trabajó con mucho... esfuerzo en este. Sua también. Con los ojos cerrados (//∇//)',
+    'S-sua entrega esto sin preguntas ni comentarios. Buenos días (〃ω〃)',
+    'E-eh... Sua recomienda leer esto en privado. Por respeto. A Sua (〃>_<;〃)',
+    'A-aquí está. Sua ya cumplió. Sua se va a leer algo inocente ahora (*ノωノ)',
+    'S-sua no sabe qué pasa en este capítulo. Tampoco quiere saberlo (/ω＼)',
+    'E-el equipo puso mucho cariño aquí... y otras cosas. Sua no dice más (//∇//)',
+    'A-ay, ay, ay... Sua entrega esto y sale corriendo (〃>_<;〃)',
+    'S-sua se disculpa de antemano con los lectores sensibles. Y con ella misma (//>/<//)',
+    'E-este capítulo tiene contenido... interesante. Sua lo deja aquí sin más comentarios (〃ω〃)',
+    'S-sua solo trabaja aquí. No es responsable del contenido. Para nada (*ノωノ)',
+    'A-aquí lo tienen... Sua pide que no la juzguen por entregar esto (//∇//)',
+    'E-eh... Sua notó el tag. Sua finge que no notó el tag. Aquí está el capítulo (〃>_<;〃)',
+    'S-sua tiene valores. Sua también tiene trabajo. El trabajo ganó hoy (/ω＼)',
+    'A-ay... Sua va a necesitar un té después de esto. Aquí está el capítulo (〃ω〃)',
+    'E-el capítulo está listo. Sua también estará lista... en unos minutos... cuando se recupere (//>/<//)',
+    'S-sua entrega esto con dignidad. Poca, pero la hay (*ノωノ)',
+    'A-aquí está. Sua cierra los ojos, cuenta hasta diez y sigue con su día (〃>_<;〃)',
+    'E-este capítulo es para valientes. O curiosos. Sua no juzga... mucho (//∇//)',
+  ];
+
+  // Anti-repetición: guardar las últimas 5 frases usadas
+  if (!global._ecchiUsadas) global._ecchiUsadas = [];
+  const disponibles = ECCHI_FRASES.filter(f => !global._ecchiUsadas.includes(f));
+  const pool = disponibles.length >= 5 ? disponibles : ECCHI_FRASES;
+  const frase = pool[Math.floor(Math.random() * pool.length)];
+  if (isEcchi) {
+    global._ecchiUsadas.push(frase);
+    if (global._ecchiUsadas.length > 5) global._ecchiUsadas.shift();
+  }
+
+  const ecchiNote = isEcchi ? \`\n\n*\${frase}*\` : '';
+
+  const mensajeFinal = (mensaje || '') + ecchiNote;
+
   const message = await announcer.sendManualAnnouncement(
     interaction.client,
     project,
     chapData,
-    { customMessage: mensaje, imageUrl: portadaUrl, credits, extraRoles }
+    { customMessage: mensajeFinal.trim() || null, imageUrl: portadaUrl, credits, extraRoles }
   );
 
   if (!message) {
