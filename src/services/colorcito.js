@@ -12,9 +12,18 @@ const HEADERS = {
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' +
     'AppleWebKit/537.36 (KHTML, like Gecko) ' +
     'Chrome/124.0.0.0 Safari/537.36',
-  'Accept-Language': 'es-ES,es;q=0.9',
-  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-  'Referer': BASE_URL,
+  'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Referer': 'https://www.google.com/',
+  'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124"',
+  'sec-ch-ua-mobile': '?0',
+  'sec-ch-ua-platform': '"Windows"',
+  'sec-fetch-dest': 'document',
+  'sec-fetch-mode': 'navigate',
+  'sec-fetch-site': 'cross-site',
+  'upgrade-insecure-requests': '1',
+  'Cache-Control': 'max-age=0',
 };
 
 /**
@@ -99,9 +108,20 @@ async function getLatestChapter(projectUrl) {
       : String(highestNum);
 
     // ── Tags / Géneros ────────────────────────────────────────────────────
+    // Intentar segunda petición para los tags si no se encontraron en la primera
+    let tagsHtml = html;
+    const tagsInPage = $('a[href*="gender="]').length;
+    if (!tagsInPage) {
+      try {
+        await new Promise(r => setTimeout(r, 1500));
+        const res2 = await axios.get(projectUrl, { headers: HEADERS, timeout: 15000 });
+        tagsHtml = res2.data;
+      } catch { /* usar html original */ }
+    }
+    const $t = require('cheerio').load(tagsHtml);
     const tags = [];
-    $('div.genres-content a, .manga-genres a, .tags-content a, a[href*="/genre/"], a[href*="/genero/"]').each((_, el) => {
-      const tag = $(el).text().trim();
+    $t('a[href*="gender="]').each((_, el) => {
+      const tag = $t(el).text().trim();
       if (tag) tags.push(tag.toLowerCase());
     });
     const isEcchi = tags.some(t => t.includes('ecchi') || t.includes('erotico') || t.includes('adulto'));

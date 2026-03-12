@@ -3,6 +3,7 @@
 
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { Projects }  = require('../utils/storage');
+const logger = require('../utils/logger');
 const SUA = require('../utils/sua');
 const { COLORS, SOURCES }    = require('../../config/config');
 const announcer     = require('../services/announcer');
@@ -101,6 +102,9 @@ async function execute(interaction) {
     if (d) {
       chapterUrlColor = d.chapterUrl;
       if (d.isEcchi) isEcchi = true;
+      logger.info('Anunciar', `Tags Colorcito: [${(d.tags||[]).join(', ')}] | isEcchi=${d.isEcchi}`);
+    } else {
+      logger.warn('Anunciar', 'Colorcito devolvió null — no se pudieron leer los tags');
     }
   }
 
