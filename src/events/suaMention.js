@@ -329,6 +329,66 @@ function detectarIntent(texto, intents) {
   return null;
 }
 
+// ── Sistema de silencio por no-entendidos repetidos ─────────────────────────
+// userId → { count, timeoutHasta, amenazado }
+const _noEntiende     = new Map();
+const UMBRAL_AVISO    = 3;   // tras X no-entendidos, avisa
+const UMBRAL_TIMEOUT  = 5;   // tras X no-entendidos, timeout real
+const UMBRAL_AMENAZA  = 3;   // tras X no-entendidos POST-timeout, amenaza de ban
+const UMBRAL_BAN      = 5;   // tras X no-entendidos POST-amenaza, banea
+const TIMEOUT_MS      = 5 * 60 * 1000;   // 5 minutos de timeout en Discord
+
+function getEntry(userId) {
+  return _noEntiende.get(userId) || { count: 0, postCount: 0, amenazado: false, timeoutHasta: 0 };
+}
+
+function registrarNoEntiende(userId) {
+  const ahora = Date.now();
+  const entry = getEntry(userId);
+
+  // Si el timeout ya expiró, resetear count pero mantener postCount y amenazado
+  if (entry.timeoutHasta && ahora > entry.timeoutHasta) {
+    entry.count = 0;
+    entry.timeoutHasta = 0;
+  }
+
+  entry.count++;
+  _noEntiende.set(userId, entry);
+  return entry;
+}
+
+function estaEnTimeout(userId) {
+  const entry = _noEntiende.get(userId);
+  if (!entry) return false;
+  return entry.timeoutHasta && Date.now() < entry.timeoutHasta;
+}
+
+function aplicarTimeout(userId) {
+  const entry = getEntry(userId);
+  entry.timeoutHasta = Date.now() + TIMEOUT_MS;
+  entry.count = 0;
+  entry.postCount = 0;
+  _noEntiende.set(userId, entry);
+}
+
+function registrarPostTimeout(userId) {
+  const entry = getEntry(userId);
+  entry.postCount = (entry.postCount || 0) + 1;
+  _noEntiende.set(userId, entry);
+  return entry;
+}
+
+function marcarAmenazado(userId) {
+  const entry = getEntry(userId);
+  entry.amenazado = true;
+  entry.postCount = 0;
+  _noEntiende.set(userId, entry);
+}
+
+function resetear(userId) {
+  _noEntiende.delete(userId);
+}
+
 // ── Respuesta por defecto ─────────────────────────────────────────────────────
 // Respuesta cuando el mensaje está vacío (solo mencionaron a Sua sin texto)
 function saludoReply(ctx) {
@@ -346,22 +406,42 @@ function saludoReply(ctx) {
 }
 
 // Respuesta cuando hay texto pero Sua no lo entendió
-function noEntiendeReply(texto) {
-  const VALK_ID = '1426408655636664410';
+function noEntiendeReply(count) {
+  // Frases normales (primeras veces)
+  const opcionesNormal = [
+    `E-eh... no sé muy bien cómo responder a eso ${K.timida()} Si crees que debería saberlo, díselo a Valk para que me lo enseñe.`,
+    `A-ay... eso me supera por ahora ${K.triste()} Puedes pedirle a Valk que me enseñe a responderlo.`,
+    `H-hm... no tengo respuesta para eso todavía ${K.timida()} Si quieres que lo aprenda, avísale a Valk.`,
+    `S-sua no sabe responder eso aún... ${K.triste()} ¡Pero puede aprender! Solo díselo a Valk.`,
+    `E-eso está fuera de lo que sé por ahora ${K.disculpa()} Valk podría incluirlo si se lo comentas.`,
+    `P-perdona... no entendí bien lo que me dijiste ${K.disculpa()} Si quieres que aprenda, cuéntaselo a Valk.`,
+    `A-aún me falta aprender mucho ${K.timida()} Para sugerencias, Valk está al tanto de todo.`,
+    `E-eso... no lo tengo programado todavía ${K.triste()} La culpa es de Valk por no enseñarme. Yo solo trabajo aquí.`,
+    `H-huy... no sé qué responderte ${K.disculpa()} Anótalo y mándaselo a Valk, él decide qué aprendo y qué no.`,
+    `S-sua procesando... procesando... error ${K.triste()} Eso no está en mis archivos. Valk tiene la culpa, no yo.`,
+    `A-ay qué pena... justo eso no lo sé ${K.timida()} Pero si se lo dices a Valk quizás en la próxima actualización ya lo sé.`,
+    `E-ehm... ${K.disculpa()} Sua no fue entrenada para eso todavía. El responsable es Valk, por si quieren reclamar.`,
+    `N-no encuentro respuesta en mis archivos ${K.triste()} Valk me prometió enseñarme más cosas... todavía estoy esperando.`,
+  ];
+
+  // Frases de advertencia (cerca del límite)
+  const opcionesAviso = [
+    `O-oye... ya van varias cosas que no sé responder ${K.triste()} Si sigues así voy a tener que ignorarte por mi salud mental...`,
+    `E-eh... Sua está llegando a su límite de "no sé" por hoy ${K.disculpa()} Una más y me tomo un descanso de ti, ¿de acuerdo?`,
+    `S-sua nota que le estás preguntando muchas cosas que no sabe ${K.triste()} Avísale a Valk o... o Sua se va a poner en modo silencio pronto.`,
+  ];
+
+  if (count >= UMBRAL_AVISO) return pick(opcionesAviso);
+  return pick(opcionesNormal);
+}
+
+function silencioReply() {
   const opciones = [
-    `E-eh... no sé muy bien cómo responder a eso ${K.timida()} Si crees que debería saberlo, díselo a <@${VALK_ID}> para que me lo enseñe.`,
-    `A-ay... eso me supera por ahora ${K.triste()} Puedes pedirle a <@${VALK_ID}> que me enseñe a responderlo.`,
-    `H-hm... no tengo respuesta para eso todavía ${K.timida()} Si quieres que lo aprenda, avísale a <@${VALK_ID}>.`,
-    `S-sua no sabe responder eso aún... ${K.triste()} ¡Pero puede aprender! Solo díselo a <@${VALK_ID}>.`,
-    `E-eso está fuera de lo que sé por ahora ${K.disculpa()} <@${VALK_ID}> podría incluirlo si se lo comentas.`,
-    `P-perdona... no entendí bien lo que me dijiste ${K.disculpa()} Si quieres que aprenda, cuéntaselo a <@${VALK_ID}>.`,
-    `A-aún me falta aprender mucho ${K.timida()} Para sugerencias, <@${VALK_ID}> está al tanto de todo.`,
-    `E-eso... no lo tengo programado todavía ${K.triste()} La culpa es de <@${VALK_ID}> por no enseñarme. Yo solo trabajo aquí.`,
-    `H-huy... no sé qué responderte ${K.disculpa()} Anótalo y mándaselo a <@${VALK_ID}>, él decide qué aprendo y qué no.`,
-    `S-sua procesando... procesando... error ${K.triste()} Eso no está en mis archivos. <@${VALK_ID}> tiene la culpa, no yo.`,
-    `A-ay qué pena... justo eso no lo sé ${K.timida()} Pero si se lo dices a <@${VALK_ID}> quizás en la próxima actualización ya lo sé.`,
-    `E-ehm... ${K.disculpa()} Sua no fue entrenada para eso todavía. El responsable es <@${VALK_ID}>, por si quieren reclamar.`,
-    `N-no encuentro respuesta en mis archivos ${K.triste()} <@${VALK_ID}> me prometió enseñarme más cosas... todavía estoy esperando.`,
+    `... ${K.dormir()}`,
+    `S-sua está en modo silencio. Vuelve en 30 minutos ${K.dormir()}`,
+    `Sua no escucha. Sua descansa. Sua vuelve luego ${K.dormir()}`,
+    `... z-zzz... ${K.dormir()} (activé el modo No Molestar)`,
+    `Sua se tomó un descanso por salud mental ${K.dormir()} Vuelve más tarde.`,
   ];
   return pick(opciones);
 }
@@ -388,16 +468,77 @@ module.exports = {
     const intents = getIntents(ctx, clima);
     const intent  = detectarIntent(texto, intents);
 
+    const uid = message.author.id;
     let respuesta;
+
     if (intent) {
-      // Intent reconocido — respuesta normal
-      respuesta = elegir(intent.respuestas, message.author.id);
+      // Intent reconocido — resetear contador
+      if (_noEntiende.has(uid)) {
+        const e = _noEntiende.get(uid);
+        e.count = Math.max(0, e.count - 1);
+      }
+      respuesta = elegir(intent.respuestas, uid);
+
     } else if (!texto) {
-      // Solo mencionaron a Sua sin escribir nada
       respuesta = saludoReply(ctx);
+
     } else {
-      // Escribieron algo pero Sua no lo entiende
-      respuesta = noEntiendeReply(texto);
+      // ── No entiende el mensaje ──────────────────────────────────────────
+      const entry = getEntry(uid);
+
+      // Si está en timeout de Discord, ignorar silenciosamente
+      if (estaEnTimeout(uid)) return;
+
+      // Si ya fue amenazado antes, contar post-amenaza
+      if (entry.amenazado) {
+        const postEntry = registrarPostTimeout(uid);
+
+        if (postEntry.postCount >= UMBRAL_BAN) {
+          // Banear
+          try {
+            await message.member.ban({
+              reason: 'Me molestaron demasiado y me puse ansiosa (╥_╥)',
+              deleteMessageSeconds: 0,
+            });
+            // No responde, el ban habla por sí solo
+            return;
+          } catch (err) {
+            respuesta = `N-no pude banearte... pero le aviso a Valk cuando llegue ${K.triste()}`;
+          }
+        } else if (postEntry.postCount >= UMBRAL_AMENAZA) {
+          respuesta = pick([
+            `S-sua va en serio... la próxima te baneo y el motivo dirá que me molestaron demasiado y me puse ansiosa ${K.triste()}`,
+            `E-eh... ya te lo advertí. Una más y uso el martillo ${K.triste()} No digas que no avisé.`,
+            `O-oye... t-tengo el botón de ban muy cerca ahora mismo ${K.triste()} Piénsalo bien.`,
+          ]);
+        } else {
+          respuesta = pick([
+            `P-pensé que habías entendido... pero aquí vamos de nuevo ${K.triste()} Si sigues, la próxima es un ban.`,
+            `A-ay... otra vez ${K.triste()} No quiero hacerlo, pero puedo banearte. Solo digo.`,
+            `E-eh... ¿ya olvidaste el timeout? ${K.timida()} Tengo memoria larga.`,
+          ]);
+        }
+
+      } else {
+        // Conteo normal pre-timeout
+        const e = registrarNoEntiende(uid);
+
+        if (e.count >= UMBRAL_TIMEOUT) {
+          // Aplicar timeout real de 5 minutos
+          try {
+            await message.member.timeout(TIMEOUT_MS, 'Necesitaba un descanso (｡>﹏<)');
+          } catch { /* sin permisos en ese servidor */ }
+          aplicarTimeout(uid);
+          marcarAmenazado(uid);
+          respuesta = pick([
+            `B-basta... t-te voy a poner en timeout 5 minutos para calmarme ${K.triste()} Cuando vuelvas, pórtate bien.`,
+            `A-activé el timeout. 5 minutitos de reflexión para los dos ${K.dormir()} Nos vemos al rato.`,
+            `O-okay, ya fue suficiente ${K.triste()} 5 minutos de timeout. Necesito respirar.`,
+          ]);
+        } else {
+          respuesta = noEntiendeReply(e.count);
+        }
+      }
     }
 
     await message.reply(respuesta);
