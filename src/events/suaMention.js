@@ -452,7 +452,8 @@ module.exports = {
 
   async execute(message) {
     if (message.author.bot) return;
-    if (!message.mentions.has(message.client.user)) return;
+    if (message.mentions.everyone) return;
+    if (!message.mentions.has(message.client.user, { ignoreEveryone: true })) return;
 
     const ctx   = getContexto();
     const clima = await getClima();
