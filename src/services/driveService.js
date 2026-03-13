@@ -123,47 +123,31 @@ async function analyzeChapters(projectFolderId) {
 
   const chapters = [];
 
-  for (const capFolder of capFolders) {
-    const subItems = await listFolder(capFolder.id);
-    const capData = {
-      number: capFolder.name,
-      folderId: capFolder.id,
-      stages: {},
-    };
+  // Analizar todos los capítulos en paralelo (máximo 5 a la vez para no saturar la API)
+  const chunkSize = 5;
+  for (let i = 0; i < capFolders.length; i += chunkSize) {
+    const chunk = capFolders.slice(i, i + chunkSize);
+    const chunkResults = await Promise.all(chunk.map(async capFolder => {
+      const subItems = await listFolder(capFolder.id);
+      const capData = { number: capFolder.name, folderId: capFolder.id, stages: {} };
 
-    // Analizar cada stage (raw, clean, trad, final)
-    for (const [key, cfg] of Object.entries(CHAPTER_FOLDERS)) {
-      const stageFolder = findByPrefix(subItems, cfg.prefixes);
+      // Analizar stages en paralelo
+      const stageEntries = Object.entries(CHAPTER_FOLDERS);
+      const stageResults = await Promise.all(stageEntries.map(async ([key, cfg]) => {
+        const stageFolder = findByPrefix(subItems, cfg.prefixes);
+        if (!stageFolder) return [key, { exists: false, done: false, credit: null, fileCount: 0 }];
 
-      if (!stageFolder) {
-        capData.stages[key] = { exists: false, done: false, credit: null, fileCount: 0 };
-        continue;
-      }
+        const stageItems = await listFolder(stageFolder.id);
+        const fileCount  = stageItems.filter(f => !isFolder(f)).length;
+        const credit     = cfg.trackCredits ? extractCredit(stageFolder.name, cfg.prefixes) : null;
+        const done       = fileCount > 0 || credit !== null;
+        return [key, { exists: true, done, credit, fileCount, folderName: stageFolder.name, nameChanged: credit !== null }];
+      }));
 
-      // Contar archivos dentro
-      const stageItems = await listFolder(stageFolder.id);
-      const fileCount = stageItems.filter(f => !isFolder(f)).length;
-
-      // Extraer crédito del nombre si aplica (ej: "Clean - Valk" → "Valk")
-      const credit = cfg.trackCredits ? extractCredit(stageFolder.name, cfg.prefixes) : null;
-
-      // Completado si:
-      //   (a) tiene archivos dentro, O
-      //   (b) el nombre fue modificado respecto al prefijo base (ej: "Clean - Valk")
-      const nameChanged = credit !== null; // tiene algo después del prefijo
-      const done = fileCount > 0 || nameChanged;
-
-      capData.stages[key] = {
-        exists: true,
-        done,
-        credit,
-        fileCount,
-        folderName: stageFolder.name,
-        nameChanged,
-      };
-    }
-
-    chapters.push(capData);
+      stageResults.forEach(([key, val]) => { capData.stages[key] = val; });
+      return capData;
+    }));
+    chapters.push(...chunkResults);
   }
 
   return chapters;

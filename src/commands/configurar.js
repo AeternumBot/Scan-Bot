@@ -72,7 +72,7 @@ async function autocomplete(interaction) {
   const choices = Projects.list()
     .filter(p => p.name.toLowerCase().includes(focused) || p.id.includes(focused))
     .slice(0, 25)
-    .map(p => ({ name: p.name, value: p.id }));
+    .map(p => ({ name: p.id, value: p.id }));
   await interaction.respond(choices);
 }
 
