@@ -249,7 +249,7 @@ function getIntents(ctx, clima) {
       ].filter(Boolean),
     },
     {
-      keys: ['chiste', 'gracioso', 'cuentame algo', 'dime algo', 'aburrido'],
+      keys: ['chiste', 'gracioso', 'cuentame', 'dime algo', 'aburrido', 'adivinanza', 'adivina'],
       respuestas: [
         timeSlot === 'manana' ? `¿Qué hace una abeja en el gimnasio? ¡Z-zumba! ${K.timida()} Perdón, soy malísima contando chistes...` : null,
         timeSlot === 'tarde' ? `¿Cómo se dice "pañuelo" en japonés? ¡Saca-moko! E-eh... ${K.timida()}` : null,
@@ -257,6 +257,12 @@ function getIntents(ctx, clima) {
         w === 'calor' ? `¡Mi chiste se derritió por el calor! F-fue un chiste malo, ¿verdad? ${K.triste()}` : null,
         dayType === 'lunes' ? `¡El chiste es que ya es lunes y sigo aquí! ...¿n-no dio risa? ${K.timida()}` : null,
         `¿Por qué el libro de matemáticas estaba triste? ¡Tenía demasiados problemas! ...${K.timida()} lo siento`,
+        `Tengo una adivinanza... ${K.timida()} ¿Qué tiene dientes pero no muerde? ¡Un peine! ...¿-estuvo bien? ${K.timida()}`,
+        `A ver esta adivinanza... ${K.timida()} ¿Qué es lo que entra por la puerta pero no puede entrar por la ventana? ¡El sonido de la puerta! E-eh... no, espera... ${K.triste()}`,
+        `O-okay... ¿Cuál es el animal más antiguo? ¡La cebra, porque está en blanco y negro! ${K.timida()} Sí, sí... fue malo...`,
+        `¿Qué le dice un techo a otro techo? T-techo de menos... ${K.timida()} Perdón, me enseñó ese <@1426408655636664410>...`,
+        `Adivinanza: soy alta cuando joven y baja cuando vieja... ¿qué soy? ${K.timida()} ¡Una vela! ¿A-acertaste? ${K.feliz()}`,
+        `¿Qué tiene ojos pero no puede ver? ${K.timida()} ¡Una papa! ...s-sé que es muy vieja esa...`,
       ].filter(Boolean),
     },
     {
@@ -324,7 +330,8 @@ function detectarIntent(texto, intents) {
 }
 
 // ── Respuesta por defecto ─────────────────────────────────────────────────────
-function defaultReply(ctx) {
+// Respuesta cuando el mensaje está vacío (solo mencionaron a Sua sin texto)
+function saludoReply(ctx) {
   const { timeSlot, dayType } = ctx;
   const opciones = [
     timeSlot === 'madrugada' ? `...mm, ¿me necesitabas? ${K.dormir()} Aquí estoy aunque sea tarde.` : null,
@@ -338,6 +345,27 @@ function defaultReply(ctx) {
   return pick(opciones);
 }
 
+// Respuesta cuando hay texto pero Sua no lo entendió
+function noEntiendeReply(texto) {
+  const VALK_ID = '1426408655636664410';
+  const opciones = [
+    `E-eh... no sé muy bien cómo responder a eso ${K.timida()} Si crees que debería saberlo, díselo a <@${VALK_ID}> para que me lo enseñe.`,
+    `A-ay... eso me supera por ahora ${K.triste()} Puedes pedirle a <@${VALK_ID}> que me enseñe a responderlo.`,
+    `H-hm... no tengo respuesta para eso todavía ${K.timida()} Si quieres que lo aprenda, avísale a <@${VALK_ID}>.`,
+    `S-sua no sabe responder eso aún... ${K.triste()} ¡Pero puede aprender! Solo díselo a <@${VALK_ID}>.`,
+    `E-eso está fuera de lo que sé por ahora ${K.disculpa()} <@${VALK_ID}> podría incluirlo si se lo comentas.`,
+    `P-perdona... no entendí bien lo que me dijiste ${K.disculpa()} Si quieres que aprenda, cuéntaselo a <@${VALK_ID}>.`,
+    `A-aún me falta aprender mucho ${K.timida()} Para sugerencias, <@${VALK_ID}> está al tanto de todo.`,
+    `E-eso... no lo tengo programado todavía ${K.triste()} La culpa es de <@${VALK_ID}> por no enseñarme. Yo solo trabajo aquí.`,
+    `H-huy... no sé qué responderte ${K.disculpa()} Anótalo y mándaselo a <@${VALK_ID}>, él decide qué aprendo y qué no.`,
+    `S-sua procesando... procesando... error ${K.triste()} Eso no está en mis archivos. <@${VALK_ID}> tiene la culpa, no yo.`,
+    `A-ay qué pena... justo eso no lo sé ${K.timida()} Pero si se lo dices a <@${VALK_ID}> quizás en la próxima actualización ya lo sé.`,
+    `E-ehm... ${K.disculpa()} Sua no fue entrenada para eso todavía. El responsable es <@${VALK_ID}>, por si quieren reclamar.`,
+    `N-no encuentro respuesta en mis archivos ${K.triste()} <@${VALK_ID}> me prometió enseñarme más cosas... todavía estoy esperando.`,
+  ];
+  return pick(opciones);
+}
+
 // ── Evento principal ──────────────────────────────────────────────────────────
 module.exports = {
   name: Events.MessageCreate,
@@ -348,14 +376,29 @@ module.exports = {
 
     const ctx   = getContexto();
     const clima = await getClima();
-    const texto = message.content.replace(/<@!?\d+>/g, '').trim();
+    // Limpiar menciones, emojis de Discord y espacios extra
+    const texto = message.content
+      .replace(/<@!?\d+>/g, '')      // menciones de usuario
+      .replace(/<#\d+>/g, '')         // menciones de canal
+      .replace(/<@&\d+>/g, '')        // menciones de rol
+      .replace(/<a?:[\w]+:\d+>/g, '') // emojis personalizados
+      .replace(/\s+/g, ' ')
+      .trim();
 
     const intents = getIntents(ctx, clima);
     const intent  = detectarIntent(texto, intents);
 
-    const respuesta = intent
-      ? elegir(intent.respuestas, message.author.id)
-      : defaultReply(ctx);
+    let respuesta;
+    if (intent) {
+      // Intent reconocido — respuesta normal
+      respuesta = elegir(intent.respuestas, message.author.id);
+    } else if (!texto) {
+      // Solo mencionaron a Sua sin escribir nada
+      respuesta = saludoReply(ctx);
+    } else {
+      // Escribieron algo pero Sua no lo entiende
+      respuesta = noEntiendeReply(texto);
+    }
 
     await message.reply(respuesta);
   },
