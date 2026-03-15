@@ -52,13 +52,23 @@ const data = new SlashCommandBuilder()
       .addStringOption(o =>
         o.setName('proyecto').setDescription('ID del proyecto').setRequired(true).setAutocomplete(true)
       )
-      .addRoleOption(o =>
-        o.setName('rol').setDescription('ID del rol en el servidor de lectores (clic derecho → Copiar ID)')
+      .addStringOption(o =>
+        o.setName('rol_id').setDescription('ID del rol en el servidor de lectores (clic derecho → Copiar ID)')
       )
   )
   .addSubcommand(sub =>
     sub.setName('verificar')
       .setDescription('Fuerza una verificación de nuevos capítulos ahora mismo')
+  )
+  .addSubcommand(sub =>
+    sub.setName('avisos')
+      .setDescription('Cambia el canal donde /avisar publica los avisos')
+      .addChannelOption(o =>
+        o.setName('canal')
+          .setDescription('Canal de avisos')
+          .addChannelTypes(ChannelType.GuildText)
+          .setRequired(true)
+      )
   )
   .addSubcommand(sub =>
     sub.setName('info')
@@ -89,11 +99,12 @@ async function execute(interaction) {
 
   const sub = interaction.options.getSubcommand();
 
-  if (sub === 'canal')     return handleCanal(interaction);
+  if (sub === 'canal')      return handleCanal(interaction);
   if (sub === 'reacciones') return handleReacciones(interaction);
-  if (sub === 'rol')       return handleRol(interaction);
-  if (sub === 'verificar') return handleVerificar(interaction);
-  if (sub === 'info')      return handleInfo(interaction);
+  if (sub === 'rol')        return handleRol(interaction);
+  if (sub === 'verificar')  return handleVerificar(interaction);
+  if (sub === 'avisos')     return handleAvisos(interaction);
+  if (sub === 'info')       return handleInfo(interaction);
 }
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
@@ -200,6 +211,22 @@ async function handleVerificar(interaction) {
   }
 }
 
+async function handleAvisos(interaction) {
+  const canal  = interaction.options.getChannel('canal');
+  const esStaff = interaction.guildId === process.env.DISCORD_GUILD_ID;
+
+  if (esStaff) {
+    process.env.STAFF_NOTICE_ID = canal.id;
+  } else {
+    process.env.NOTICE_CHANNEL_ID = canal.id;
+  }
+
+  await interaction.reply({
+    content: `✅ Canal de avisos actualizado a ${canal}.\n\n⚠️ Para que persista al reiniciar el bot, actualiza \`${esStaff ? 'STAFF_NOTICE_ID' : 'NOTICE_CHANNEL_ID'}\` en tu archivo \`.env\`.`,
+    ephemeral: true,
+  });
+}
+
 async function handleInfo(interaction) {
   const projects = Projects.list();
   const active   = projects.filter(p => p.active).length;
@@ -207,25 +234,32 @@ async function handleInfo(interaction) {
     ? `<#${process.env.ANNOUNCEMENT_CHANNEL_ID}>`
     : 'No configurado';
 
+  const noticeStaff  = process.env.STAFF_NOTICE_ID
+    ? `<#${process.env.STAFF_NOTICE_ID}>`
+    : 'No configurado';
+  const noticeReader = process.env.NOTICE_CHANNEL_ID
+    ? `<#${process.env.NOTICE_CHANNEL_ID}>`
+    : 'No configurado';
+
   const embed = new EmbedBuilder()
     .setColor(COLORS.info)
     .setTitle('⚙️ Configuración del bot')
     .addFields(
-      { name: '📢 Canal de anuncios', value: channel,                    inline: true },
-      { name: '📋 Proyectos totales', value: String(projects.length),   inline: true },
-      { name: '✅ Proyectos activos', value: String(active),             inline: true },
-      { name: '⏱️ Intervalo de check',
-        value: `Cada ${process.env.CHECK_INTERVAL_MINUTES || 25} minutos`, inline: true },
-      { name: '🕐 Zona horaria',
-        value: process.env.TIMEZONE || 'America/Bogota',                 inline: true },
-      { name: '📦 Node.js', value: process.version,                      inline: true },
+      { name: '📢 Canal de anuncios',       value: channel,                                              inline: true },
+      { name: '📋 Proyectos totales',        value: String(projects.length),                             inline: true },
+      { name: '✅ Proyectos activos',        value: String(active),                                      inline: true },
+      { name: '📣 Avisos (staff)',           value: noticeStaff,                                         inline: true },
+      { name: '📣 Avisos (lectores)',        value: noticeReader,                                        inline: true },
+      { name: '⏱️ Intervalo de check',       value: `Cada ${process.env.CHECK_INTERVAL_MINUTES || 25} minutos`, inline: true },
+      { name: '🕐 Zona horaria',             value: process.env.TIMEZONE || 'America/Bogota',            inline: true },
+      { name: '📦 Node.js',                  value: process.version,                                     inline: true },
     )
     .addFields({
       name: '🔧 Comandos disponibles',
       value:
         '`/proyecto add/remove/list/info/toggle/setstatus`\n' +
         '`/status [proyecto]`\n' +
-        '`/configurar canal/reacciones/rol/verificar/info`\n' +
+        '`/configurar canal/reacciones/rol/avisos/verificar/info`\n' +
         '`/buscar <nombre> <fuente>`\n' +
         '`/anunciar <proyecto>`',
     })

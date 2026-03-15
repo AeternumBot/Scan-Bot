@@ -74,12 +74,13 @@ async function execute(interaction) {
   const content = lines.join('\n');
 
   // ── Elegir canal según el servidor donde se ejecuta el comando ───────────
-  const STAFF_GUILD_ID  = process.env.DISCORD_GUILD_ID;
-  const READER_GUILD_ID = process.env.DISCORD_READER_GUILD_ID;
-  const STAFF_NOTICE_ID  = '1368814037743177789';
+  const STAFF_GUILD_ID   = process.env.DISCORD_GUILD_ID;
+  const READER_GUILD_ID  = process.env.DISCORD_READER_GUILD_ID;
+  // Lee dinámicamente desde env (puede ser cambiado con /configurar avisos)
+  const STAFF_NOTICE_ID  = process.env.STAFF_NOTICE_ID  || '1368814037743177789';
   const READER_NOTICE_ID = process.env.NOTICE_CHANNEL_ID;
 
-  const esStaff = interaction.guildId === STAFF_GUILD_ID;
+  const esStaff  = interaction.guildId === STAFF_GUILD_ID;
   const channelId = esStaff ? STAFF_NOTICE_ID : READER_NOTICE_ID;
 
   if (!channelId) {
