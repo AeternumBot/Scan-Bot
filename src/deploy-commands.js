@@ -1,6 +1,6 @@
 // src/deploy-commands.js
 // - Comandos de gestión  → solo servidor de STAFF
-// - /anunciar            → servidor de STAFF + servidor de LECTORES
+// - /anunciar, /avisar, /rol, /configurar → servidor de STAFF + servidor de LECTORES
 
 require('dotenv').config();
 
@@ -19,7 +19,7 @@ if (!token || !clientId || !staffGuildId) {
 }
 
 // Comandos que también van al servidor de lectores
-const READER_COMMANDS = ['anunciar', 'avisar', 'rol'];
+const READER_COMMANDS = ['anunciar', 'avisar', 'rol', 'configurar'];
 
 const allCommands    = [];
 const readerCommands = [];
@@ -46,7 +46,7 @@ const rest = new REST({ version: '10' }).setToken(token);
     console.log('✅ Staff OK');
     allCommands.forEach(c => console.log(`   /${c.name}`));
 
-    // ── Servidor de LECTORES → solo /anunciar ───────────────────────────────
+    // ── Servidor de LECTORES → comandos compartidos ─────────────────────────
     if (readerGuildId && readerCommands.length) {
       console.log(`\n🔄 Registrando ${readerCommands.length} comando(s) en servidor de LECTORES (${readerGuildId})...`);
       await rest.put(Routes.applicationGuildCommands(clientId, readerGuildId), { body: readerCommands });
