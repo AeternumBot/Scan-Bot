@@ -43,9 +43,18 @@ async function sendSingleStatus(interaction, project) {
   const ds = await driveService.getProjectStatus(project.driveFolder, project.category);
   const catInfo = CATEGORIES[project.category] || { emoji: '📖', name: '' };
 
-  // Último capítulo en cada plataforma
+  // Leer del caché — el monitor actualiza cada 25 min
   const lastTmo   = LastChapters.get(project.id, 'tmo');
   const lastColor = LastChapters.get(project.id, 'colorcito');
+
+  // Calcular antigüedad del dato
+  function seenAgo(entry) {
+    if (!entry?.seenAt) return '';
+    const mins = Math.round((Date.now() - new Date(entry.seenAt).getTime()) / 60000);
+    if (mins < 60)   return ` *(hace ${mins}m)*`;
+    if (mins < 1440) return ` *(hace ${Math.round(mins/60)}h)*`;
+    return ` *(hace ${Math.round(mins/1440)}d)*`;
+  }
 
   const embed = new EmbedBuilder()
     .setColor(project.color || COLORS.status)
@@ -57,11 +66,11 @@ async function sendSingleStatus(interaction, project) {
   // ── Plataformas ──────────────────────────────────────────────────────────
   const platformLines = [];
   if (project.sources?.tmo) {
-    const cap = lastTmo ? `Cap. **${lastTmo.chapterNum}**` : 'Sin datos aún';
+    const cap = lastTmo ? `Cap. **${lastTmo.chapterNum}**${seenAgo(lastTmo)}` : 'Sin datos aún';
     platformLines.push(`📖 **TMO:** ${cap}${lastTmo?.chapterUrl ? ` — [ver](${lastTmo.chapterUrl})` : ''}`);
   }
   if (project.sources?.colorcito) {
-    const cap = lastColor ? `Cap. **${lastColor.chapterNum}**` : 'Sin datos aún';
+    const cap = lastColor ? `Cap. **${lastColor.chapterNum}**${seenAgo(lastColor)}` : 'Sin datos aún';
     platformLines.push(`🎨 **Colorcito:** ${cap}${lastColor?.chapterUrl ? ` — [ver](${lastColor.chapterUrl})` : ''}`);
   }
 
