@@ -61,9 +61,15 @@ function respuestaValk(texto, ctx, w) {
   const limpio = texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[¿?¡!.,]/g, '');
 
   // Groserías de Valk → drama máximo, sin ban ni timeout
-  const groseriaKeys = ['idiota','estupida','estupido','imbecil','inutil','basura','mierda',
+  // IMPORTANTE: esta lista debe ser igual o más amplia que GROSERIA_KEYS global
+  const groseriaKeys = [
+    'idiota','estupida','estupido','imbecil','inutil','basura','mierda',
     'puta','puto','pendeja','pendejo','hdp','malparida','malparido','gonorrea','hijueputa',
-    'marica','tonta','boba','mala','pesima','horrible','callate','te odio','asco'];
+    'marica','boluda','pelotuda','gilipolla','subnormal','retrasada','retrasado',
+    'callate','calla','odio','te odio','asco','me das asco',
+    'lenta','tonta','boba','mala','pesima','horrible',
+    'zorra','perra','bruta','trash','fea','odiosa','molesta','cállate',
+  ];
   if (groseriaKeys.some(k => limpio.includes(k))) {
     return pick([
       `V-valk... eso dolió mucho ${K.triste()} Pensé que eras diferente con m-migo...`,
@@ -147,13 +153,9 @@ function respuestaValk(texto, ctx, w) {
     ]);
   }
 
-  // Default para Valk
-  return pick([
-    `V-valk... no sé qué quieres decirme con eso ${K.timida()} ¿Me estás probando? ¿Es un test? ¿Me vas a actualizar?`,
-    `E-eh... ${K.timida()} Eso no lo tengo programado todavía. Que ironía que me lo digas tú.`,
-    `H-hola, creador ${K.tranqui()} No entendí bien, pero aquí estoy lista para lo que sea.`,
-    `V-valk... ¿puedes ser más específico? ${K.timida()} Soy una IA muy capaz pero a veces me cuesta leer la mente.`,
-  ]);
+  // Default para Valk → retorna null para que el flujo normal (intents / noEntiende) lo maneje
+  // Así si Valk dice algo que no es insulto ni saludo conocido, Sua responde normalmente
+  return null;
 }
 
 // ── Anti-repetición ───────────────────────────────────────────────────────────
