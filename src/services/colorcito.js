@@ -53,39 +53,9 @@ async function getLatestChapter(projectUrl) {
       null;
 
     // ── Capítulos ──────────────────────────────────────────────────────────
-    // FIX: Extraer el slug del proyecto desde la URL para filtrar únicamente
-    // los capítulos que pertenecen a este proyecto. Esto evita que links de
-    // secciones "relacionados" / "recomendados" de otras series contaminen
-    // el resultado y devuelvan un capítulo incorrecto (más antiguo o de otra serie).
-    const projectSlug = projectUrl.replace(/\/$/, '').split('/').pop();
-
-    // Intentar primero con selectores específicos del contenedor de capítulos
-    // (tema Madara / WP-Manga que usa Colorcito)
-    const chapterContainerSelector = [
-      '.wp-manga-chapter a',
-      'ul.version-chap li a',
-      '.listing-chapters_wrap a',
-      '#chapterlist a',
-      '.chapter-list a',
-    ].join(', ');
-
-    let chapterLinks = $(chapterContainerSelector).filter((_, el) => {
-      const href = $(el).attr('href') || '';
-      return href.includes('/capitulo-') && href.includes(projectSlug);
-    });
-
-    // Fallback: selector amplio pero igualmente filtrado por slug del proyecto
-    if (!chapterLinks.length) {
-      chapterLinks = $('a[href*="/capitulo-"]').filter((_, el) => {
-        const href = $(el).attr('href') || '';
-        return href.includes(projectSlug);
-      });
-    }
-
-    // Fallback final sin filtro de slug (último recurso)
-    if (!chapterLinks.length) {
-      chapterLinks = $('a[href*="/capitulo-"]');
-    }
+    // Colorcitoscan usa links con href="/ver/proyecto/capitulo-N"
+    // Selector: todos los <a> que contengan "/capitulo-" en el href
+    const chapterLinks = $('a[href*="/capitulo-"]');
 
     if (!chapterLinks.length) {
       // Fallback para otros temas WordPress
@@ -108,18 +78,30 @@ async function getLatestChapter(projectUrl) {
     }
 
     // Ordenar por número de capítulo descendente y tomar el mayor
+    // El número real puede estar en el texto del link (ej: "Capítulo 37.5")
+    // ya que el href usa /capitulo-375 sin punto decimal
     let highestNum = -1;
     let firstLink = null;
+    let firstLinkRealNum = null;
 
     chapterLinks.each((_, el) => {
       const href = $(el).attr('href') || '';
-      const match = href.match(/capitulo-([\d]+(?:[.,]\d+)?)/i);
-      if (match) {
-        const num = parseFloat(match[1].replace(',', '.'));
-        if (num > highestNum) {
-          highestNum = num;
-          firstLink = $(el);
-        }
+      const hrefMatch = href.match(/capitulo-([\d]+(?:[.,]\d+)?)/i);
+      if (!hrefMatch) return;
+
+      // Intentar leer el número real del texto o title del link
+      const linkText  = $(el).text().trim();
+      const titleAttr = $(el).attr('title') || '';
+      const textMatch = (linkText + ' ' + titleAttr).match(/(?:cap[ií]tulo\.?)?\s*([\d]+(?:[.,][\d]+)?)/i);
+
+      // Usar número del texto si existe, si no usar el del href
+      const rawNum  = textMatch ? textMatch[1].replace(',', '.') : hrefMatch[1].replace(',', '.');
+      const num     = parseFloat(rawNum);
+
+      if (num > highestNum) {
+        highestNum = num;
+        firstLinkRealNum = rawNum;
+        firstLink = $(el);
       }
     });
 
@@ -130,12 +112,12 @@ async function getLatestChapter(projectUrl) {
 
     const chapterUrl = firstLink.attr('href') || null;
 
-    // Intentar obtener número del title o del href
-    const titleAttr = firstLink.attr('title') || '';
+    // Usar el número real detectado del texto, con fallback al title attr
+    const titleAttr  = firstLink.attr('title') || '';
     const titleMatch = titleAttr.match(/Cap\.?\s*([\d]+(?:[.,]\d+)?)/i);
     const chapterNum = titleMatch
       ? titleMatch[1].replace(',', '.')
-      : String(highestNum);
+      : (firstLinkRealNum || String(highestNum));
 
     // ── Tags / Géneros ────────────────────────────────────────────────────
     // Intentar segunda petición para los tags si no se encontraron en la primera
