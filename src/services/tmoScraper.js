@@ -78,15 +78,24 @@ async function getLatestChapter(projectUrl) {
     const collapseId = collapseIdMatch ? collapseIdMatch[1] : null;
 
     // Buscar el link de lectura dentro del div collapsible correspondiente
+    // TMO usa /viewer/HASH/cascade como URL real del capítulo
     let chapterUrl = null;
     if (collapseId) {
       const collapseDiv = $(`#${collapseId}`);
-      chapterUrl = collapseDiv.find('a.btn[href*="/view_uploads/"]').attr('href') || null;
+      // Intentar primero el link /viewer/ (URL real navegable)
+      chapterUrl = collapseDiv.find('a[href*="/viewer/"]').attr('href') ||
+                   collapseDiv.find('a.btn[href*="/view_uploads/"]').attr('href') || null;
     }
-    // Fallback: buscar cualquier link view_uploads en el mismo li
+    // Fallback: buscar en el li y el siguiente elemento
     if (!chapterUrl) {
-      chapterUrl = firstRow.find('a[href*="/view_uploads/"]').attr('href') ||
+      chapterUrl = firstRow.find('a[href*="/viewer/"]').attr('href') ||
+                   firstRow.next().find('a[href*="/viewer/"]').attr('href') ||
+                   firstRow.find('a[href*="/view_uploads/"]').attr('href') ||
                    firstRow.next().find('a[href*="/view_uploads/"]').attr('href') || null;
+    }
+    // Fallback final: buscar en toda la página el primer link /viewer/
+    if (!chapterUrl) {
+      chapterUrl = $('a[href*="/viewer/"]').first().attr('href') || null;
     }
 
     const chapterNumMatch = chapterText.match(/[\d]+(?:[.,]\d+)?/);
