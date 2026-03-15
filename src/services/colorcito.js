@@ -53,9 +53,39 @@ async function getLatestChapter(projectUrl) {
       null;
 
     // ── Capítulos ──────────────────────────────────────────────────────────
-    // Colorcitoscan usa links con href="/ver/proyecto/capitulo-N"
-    // Selector: todos los <a> que contengan "/capitulo-" en el href
-    const chapterLinks = $('a[href*="/capitulo-"]');
+    // FIX: Extraer el slug del proyecto desde la URL para filtrar únicamente
+    // los capítulos que pertenecen a este proyecto. Esto evita que links de
+    // secciones "relacionados" / "recomendados" de otras series contaminen
+    // el resultado y devuelvan un capítulo incorrecto (más antiguo o de otra serie).
+    const projectSlug = projectUrl.replace(/\/$/, '').split('/').pop();
+
+    // Intentar primero con selectores específicos del contenedor de capítulos
+    // (tema Madara / WP-Manga que usa Colorcito)
+    const chapterContainerSelector = [
+      '.wp-manga-chapter a',
+      'ul.version-chap li a',
+      '.listing-chapters_wrap a',
+      '#chapterlist a',
+      '.chapter-list a',
+    ].join(', ');
+
+    let chapterLinks = $(chapterContainerSelector).filter((_, el) => {
+      const href = $(el).attr('href') || '';
+      return href.includes('/capitulo-') && href.includes(projectSlug);
+    });
+
+    // Fallback: selector amplio pero igualmente filtrado por slug del proyecto
+    if (!chapterLinks.length) {
+      chapterLinks = $('a[href*="/capitulo-"]').filter((_, el) => {
+        const href = $(el).attr('href') || '';
+        return href.includes(projectSlug);
+      });
+    }
+
+    // Fallback final sin filtro de slug (último recurso)
+    if (!chapterLinks.length) {
+      chapterLinks = $('a[href*="/capitulo-"]');
+    }
 
     if (!chapterLinks.length) {
       // Fallback para otros temas WordPress
