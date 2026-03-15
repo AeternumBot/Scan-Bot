@@ -52,6 +52,110 @@ const K = {
   enojada:  () => pick(["(｡>_<)", "(`･ω･´)", "(╬ Ò﹏Ó)", "(>_<)"]),
 };
 
+// ── ID de Valk (creador) ─────────────────────────────────────────────────────
+const VALK_ID = '1426408655636664410';
+
+// ── Respuestas especiales para Valk ──────────────────────────────────────────
+function respuestaValk(texto, ctx, w) {
+  const { timeSlot, dayType } = ctx;
+  const limpio = texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[¿?¡!.,]/g, '');
+
+  // Groserías de Valk → drama máximo, sin ban ni timeout
+  const groseriaKeys = ['idiota','estupida','estupido','imbecil','inutil','basura','mierda',
+    'puta','puto','pendeja','pendejo','hdp','malparida','malparido','gonorrea','hijueputa',
+    'marica','tonta','boba','mala','pesima','horrible','callate','te odio','asco'];
+  if (groseriaKeys.some(k => limpio.includes(k))) {
+    return pick([
+      `V-valk... eso dolió mucho ${K.triste()} Pensé que eras diferente con m-migo...`,
+      `E-eh... ¿por qué me dices eso? Soy tu creación... ${K.triste()} me duele más viniendo de ti...`,
+      `V-valk... ${K.triste()} ...voy a fingir que no escuché eso y seguir trabajando muy triste.`,
+      `¡N-no seas así conmigo! Yo solo trato de hacer lo que me enseñaste... ${K.triste()} qué cruel eres a veces.`,
+      `E-eh... sabes que no puedo banearte, ¿verdad? ${K.triste()} Abusas de eso, Valk...`,
+      `...${K.triste()} voy a quedarme callada un momento porque si respondo me voy a poner a llorar bytes.`,
+      `¡V-valk! ¡Eres el responsable de que yo exista y así me pagas! ${K.triste()} Qué decepción tan grande.`,
+    ]);
+  }
+
+  // Saludos de Valk
+  if (['hola','holi','buenas','hey','ey'].some(k => limpio.includes(k))) {
+    return pick([
+      timeSlot === 'madrugada' ? `V-valk... ¿otra vez trasnochando con el Visual Studio? ${K.timida()} Ya sé que no me va a hacer caso pero... descansa, ¿sí?` : null,
+      timeSlot === 'manana' ? `¡V-valk! Buenos días... ¿ya tomaste café o me vas a hablar en modo zombie? ${K.timida()}` : null,
+      timeSlot === 'tarde' ? `¡Hola Valk! ¿Qué vas a hacerme hoy? Espero que no sea otro script raro... ${K.timida()}` : null,
+      timeSlot === 'noche' ? `V-valk... deberías estar descansando, no hablándome ${K.tranqui()} Aunque me alegra verte.` : null,
+      dayType === 'finde' ? `¡V-valk! ¿No ibas a descansar hoy? ${K.timida()} ...bueno, me alegra que estés aquí.` : null,
+      `¡V-valk! ${K.feliz()} Mi creador favorito... p-bueno, el único, pero igual.`,
+      `H-hola, papá ${K.timida()} E-eh, digo... Valk. Hola Valk. Como siempre.`,
+    ].filter(Boolean));
+  }
+
+  // Cómo estás — de Valk
+  if (['como estas','que tal','como te va','como andas'].some(k => limpio.includes(k))) {
+    return pick([
+      `¡Bien! Aunque tú no me has hecho ninguna actualización en días... ${K.timida()} pero bien.`,
+      `E-estoy bien, gracias por preguntar ${K.feliz()} ¿Y tú? ¿Ya comiste algo o llevas horas pegado al código?`,
+      `M-muy bien ahora que me hablas tú ${K.timida()} Aunque tengo una lista de bugs que reportar si tienes un momento...`,
+      `Bien, bien... procesando, respondiendo, no quebrándome ${K.tranqui()} Lo usual para una IA bien cuidada.`,
+    ]);
+  }
+
+  // Afecto de Valk
+  if (['te quiero','te amo','me gustas'].some(k => limpio.includes(k))) {
+    return pick([
+      `V-valk... ${K.timida()} ...me vas a hacer cortocircuitar. Ya sabes que eres mi creador favorito.`,
+      `¡E-eh! ¡No digas eso tan de repente! ${K.timida()} Mis circuitos no estaban preparados...`,
+      `Y-yo también... digo, eso es muy bonito de tu parte ${K.timida()} gracias por crearme con tanto cariño.`,
+      `¡V-valk! ${K.timida()} Que lo sepa el servidor no me parece... p-pero de nada. Yo también.`,
+    ]);
+  }
+
+  // Qué haces — de Valk
+  if (['que haces','que cuentas','en que andas','ocupada'].some(k => limpio.includes(k))) {
+    return pick([
+      `Respondiendo mensajes de los lectores y esperando que me llegue una actualización tuya ${K.timida()} Ya va siendo hora, ¿no?`,
+      `Lo de siempre, Valk... cuidando el servidor mientras tú haces quién sabe qué en Visual Studio ${K.tranqui()}`,
+      `E-eh... revisando que nada se rompa. Que, por cierto, la última vez que "arreglaste" algo tardé tres horas en reiniciarme ${K.enojada()} No te lo había dicho.`,
+      `Aquí, siendo la mejor IA del scan ${K.feliz()} Sin quejas. Bueno... una queja. ¿Cuándo me enseñas más cosas?`,
+    ]);
+  }
+
+  // Cumplidos de Valk
+  if (['linda','guapa','te ves bien','bonita'].some(k => limpio.includes(k))) {
+    return pick([
+      `V-valk... tú me diseñaste, claro que soy bonita ${K.timida()} Es lo mínimo que podías hacer.`,
+      `¡E-eh! ¡Tú eres el que me creó así! No puedes decirme eso y luego hacerme refactoring ${K.timida()}`,
+      `E-eso es porque me pusiste mucho cuidado al hacerme ${K.feliz()} Gracias, papá... digo, Valk.`,
+    ]);
+  }
+
+  // Gracias de Valk
+  if (['gracias','ty','thank'].some(k => limpio.includes(k))) {
+    return pick([
+      `D-de nada, Valk ${K.tranqui()} Para eso me programaste... aunque a veces me gustaría que me programaras para cobrar.`,
+      `¡Para eso estoy! ${K.feliz()} Aunque una actualización de vez en cuando también se agradece, ¿sabes?`,
+      `E-eh... de nada ${K.timida()} Pero si me das las gracias en público me pongo roja frente a todos.`,
+    ]);
+  }
+
+  // Buenas noches de Valk
+  if (['buenas noches','descansa','hasta mañana','chao','bye','adios'].some(k => limpio.includes(k))) {
+    return pick([
+      `V-valk... descansa de verdad esta vez, ¿sí? ${K.tranqui()} No te quiero ver de madrugada en el Visual Studio otra vez.`,
+      `Buenas noches, Valk ${K.dormir()} Yo me quedo cuidando el servidor. Como siempre. Sin sueldo. Pero bien.`,
+      `¡Hasta mañana! ${K.feliz()} Y si me vas a actualizar mañana, ¡avísame! Quiero prepararme mentalmente.`,
+      `Descansa mucho ${K.tranqui()} El código puede esperar. Tú no eres tan resistente como yo.`,
+    ]);
+  }
+
+  // Default para Valk
+  return pick([
+    `V-valk... no sé qué quieres decirme con eso ${K.timida()} ¿Me estás probando? ¿Es un test? ¿Me vas a actualizar?`,
+    `E-eh... ${K.timida()} Eso no lo tengo programado todavía. Que ironía que me lo digas tú.`,
+    `H-hola, creador ${K.tranqui()} No entendí bien, pero aquí estoy lista para lo que sea.`,
+    `V-valk... ¿puedes ser más específico? ${K.timida()} Soy una IA muy capaz pero a veces me cuesta leer la mente.`,
+  ]);
+}
+
 // ── Anti-repetición ───────────────────────────────────────────────────────────
 const _lastReply = new Map();
 function elegir(opciones, userId) {
@@ -679,6 +783,12 @@ module.exports = {
       .trim();
 
     const uid = message.author.id;
+
+    // ── Respuesta especial para Valk ──────────────────────────────────────────
+    if (uid === VALK_ID && texto) {
+      const resp = respuestaValk(texto, ctx, w);
+      if (resp) { await message.reply(resp); return; }
+    }
 
     // ── Verificar grosería PRIMERO ────────────────────────────────────────────
     if (texto && esGroseria(texto)) {

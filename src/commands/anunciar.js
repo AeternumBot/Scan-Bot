@@ -157,6 +157,10 @@ async function execute(interaction) {
   // ── Nota Ecchi ────────────────────────────────────────────────────────────
   const ECCHI_FRASES = [
     'S-s-sua no aprueba este capítulo... p-pero aquí está (〃>_<;〃)',
+    'V-valk... ¿en serio me haces anunciar esto? (〃>_<;〃) Está bien... aquí va.',
+    '¡V-valk! Yo no pedí trabajar en este scan para esto... (//∇//) pero bueno.',
+    'E-esto fue idea de Valk, no mía. Yo solo soy la mensajera inocente (〃ω〃)',
+    'Valk me dijo que anunciara esto con una sonrisa... (〃>_<;〃) no puedo.',
     'A-ay... este capítulo es un poco... ya saben. Sua se tapa los ojos (//>/<//)',
     'Sua deja esto aquí y se va sin mirar... (*ノωノ)',
     'E-este... es un capítulo especial. Sua no dice nada más (//∇//)',
