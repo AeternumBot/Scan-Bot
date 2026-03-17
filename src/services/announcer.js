@@ -78,7 +78,7 @@ function buildAllowedMentions(extraRoles = [], baseRole = null) {
   if (baseRole) roles.push(baseRole);
   extraRoles.forEach(r => roles.push(r));
   return {
-    parse: ['everyone', 'here'],
+    parse: ['everyone'],
     roles,
   };
 }

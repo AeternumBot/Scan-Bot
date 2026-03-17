@@ -71,11 +71,12 @@ async function execute(interaction) {
 
   const content = lines.join('\n');
 
-  // ── allowedMentions para que el ping realmente notifique ─────────────────
+  // ── allowedMentions ───────────────────────────────────────────────────────
+  // Discord API solo acepta 'everyone', 'roles' y 'users' en parse[]
+  // @here NO tiene enum propio, se cubre igual con 'everyone'
   const allowedMentions = { parse: [], roles: [] };
-  if (pingOpt === 'everyone') allowedMentions.parse.push('everyone');
-  if (pingOpt === 'here')     allowedMentions.parse.push('here');
-  if (rol)                    allowedMentions.roles.push(rol.id);
+  if (pingOpt === 'everyone' || pingOpt === 'here') allowedMentions.parse.push('everyone');
+  if (rol) allowedMentions.roles.push(rol.id);
 
   // ── Elegir canal según el servidor donde se ejecuta el comando ───────────
   const STAFF_GUILD_ID   = process.env.DISCORD_GUILD_ID;
