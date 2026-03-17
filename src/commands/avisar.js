@@ -32,7 +32,6 @@ const data = new SlashCommandBuilder()
   );
 
 async function execute(interaction) {
-  // Roles autorizados: anunciador (lectores) o mod (staff)
   const rolesPermitidos = [
     process.env.ANNOUNCER_ROLE_ID,
     process.env.MOD_ROLE_ID || '1368818622750789633',
@@ -58,7 +57,6 @@ async function execute(interaction) {
   // ── Construir el mensaje ─────────────────────────────────────────────────
   const lines = [];
 
-  // Ping
   if (pingOpt === 'everyone') lines.push('@everyone');
   else if (pingOpt === 'here') lines.push('@here');
   if (rol) lines.push(`<@&${rol.id}>`);
@@ -73,19 +71,22 @@ async function execute(interaction) {
 
   const content = lines.join('\n');
 
+  // ── allowedMentions para que el ping realmente notifique ─────────────────
+  const allowedMentions = { parse: [], roles: [] };
+  if (pingOpt === 'everyone') allowedMentions.parse.push('everyone');
+  if (pingOpt === 'here')     allowedMentions.parse.push('here');
+  if (rol)                    allowedMentions.roles.push(rol.id);
+
   // ── Elegir canal según el servidor donde se ejecuta el comando ───────────
   const STAFF_GUILD_ID   = process.env.DISCORD_GUILD_ID;
   const READER_GUILD_ID  = process.env.DISCORD_READER_GUILD_ID;
-  // Lee dinámicamente desde env (puede ser cambiado con /configurar avisos)
   const STAFF_NOTICE_ID  = process.env.STAFF_NOTICE_ID  || '1368814037743177789';
   const READER_NOTICE_ID = process.env.NOTICE_CHANNEL_ID;
 
-  const esStaff  = interaction.guildId === STAFF_GUILD_ID;
+  const esStaff   = interaction.guildId === STAFF_GUILD_ID;
   const channelId = esStaff ? STAFF_NOTICE_ID : READER_NOTICE_ID;
 
-  if (!channelId) {
-    return interaction.editReply(SUA.avisar.sinCanal);
-  }
+  if (!channelId) return interaction.editReply(SUA.avisar.sinCanal);
 
   let channel = null;
   if (esStaff) {
@@ -97,11 +98,9 @@ async function execute(interaction) {
     } catch { }
   }
 
-  if (!channel) {
-    return interaction.editReply(SUA.avisar.sinCanal);
-  }
+  if (!channel) return interaction.editReply(SUA.avisar.sinCanal);
 
-  const payload = { content };
+  const payload = { content, allowedMentions };
   if (imagen) payload.files = [{ attachment: imagen, name: 'imagen.jpg' }];
   await channel.send(payload);
   await interaction.editReply(SUA.avisar.publicado);

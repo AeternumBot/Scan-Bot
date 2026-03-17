@@ -17,50 +17,27 @@ async function getAnnouncementChannel(client, channelId) {
   return client.channels.fetch(channelId).catch(() => null);
 }
 
-/**
- * Construye el mensaje de texto plano del anuncio.
- *
- * Estructura:
- *   @Rol (ping)
- *   mensaje personalizado
- *
- *   **Título del proyecto**
- *   Capítulo X
- *
- *   🔗 TMO: <url>
- *   🔗 COLORCITO: <url>
- *
- *   🕊️ Staff celestial: @Persona1 @Persona2
- *
- *   💬 Comparte tu bendición...
- *   ⚠️ Si no es TMO o COLORCITO...
- */
 function buildAnnouncementText(project, chapData, options = {}) {
   const { customMessage, credits = [], extraRoles = [] } = options;
   const lines = [];
 
   // ── Pings ──────────────────────────────────────────────────────────────────
-  // Siempre @everyone + opcionalmente el rol de la serie y roles extra
   const pings = ['@everyone'];
   const baseRole = project.readerRoleId || project.roleId;
   if (baseRole) pings.push(`<@&${baseRole}>`);
   extraRoles.forEach(r => pings.push(`<@&${r}>`));
   lines.push(pings.join(' '));
 
-  // ── Mensaje personalizado ──────────────────────────────────────────────────
   if (customMessage) {
     lines.push('');
     lines.push(customMessage);
   }
 
-  // ── Título y capítulo ─────────────────────────────────────────────────────
   lines.push('');
   lines.push(`# ${project.name}`);
   lines.push(`Capítulo ${chapData.chapterNum}${chapData.chapterTitle ? `: ${chapData.chapterTitle}` : ''}`);
 
-  // ── Links de plataformas ──────────────────────────────────────────────────
   const linkLines = [];
-  // <url> suprime la integración/preview en Discord
   if (project.sources?.tmo && chapData.urlTmo) {
     linkLines.push(`🔗 ${SOURCES.tmo.label}: <${chapData.urlTmo}>`);
   } else if (project.sources?.tmo) {
@@ -77,19 +54,16 @@ function buildAnnouncementText(project, chapData, options = {}) {
     linkLines.forEach(l => lines.push(l));
   }
 
-  // ── Créditos / Staff ──────────────────────────────────────────────────────
   const allCredits = [...credits];
   if (!allCredits.length && project.defaultCredits) {
     allCredits.push(project.defaultCredits);
   }
-
   if (allCredits.length) {
     lines.push('');
     lines.push('🕊️ Staff celestial:');
     allCredits.forEach(c => lines.push(c));
   }
 
-  // ── Pie fijo ──────────────────────────────────────────────────────────────
   if (ANNOUNCEMENT_FOOTER?.length) {
     lines.push('');
     ANNOUNCEMENT_FOOTER.forEach(l => lines.push(l));
@@ -98,9 +72,17 @@ function buildAnnouncementText(project, chapData, options = {}) {
   return lines.join('\n');
 }
 
-/**
- * Envía el anuncio automático cuando el monitor detecta un nuevo capítulo.
- */
+// ── allowedMentions para que @everyone y roles realmente notifiquen ──────────
+function buildAllowedMentions(extraRoles = [], baseRole = null) {
+  const roles = [];
+  if (baseRole) roles.push(baseRole);
+  extraRoles.forEach(r => roles.push(r));
+  return {
+    parse: ['everyone', 'here'],
+    roles,
+  };
+}
+
 async function sendAnnouncement(client, project, chapData, source) {
   if (!client?.isReady()) return;
 
@@ -116,7 +98,6 @@ async function sendAnnouncement(client, project, chapData, source) {
     return;
   }
 
-  // Para anuncios automáticos, obtener ambas URLs si el proyecto las tiene
   const chapDataFull = {
     ...chapData,
     urlTmo:       source === 'tmo'       ? chapData.chapterUrl : null,
@@ -124,17 +105,18 @@ async function sendAnnouncement(client, project, chapData, source) {
   };
 
   const text = buildAnnouncementText(project, chapDataFull);
-  const message = await channel.send({ content: text });
+  const baseRole = project.readerRoleId || project.roleId || null;
+
+  const message = await channel.send({
+    content: text,
+    allowedMentions: buildAllowedMentions([], baseRole),
+  });
 
   await addReactions(message, project.reactions || REACTIONS.newChapter);
-
   logger.success('Announcer', `Anuncio enviado: ${project.name} cap. ${chapData.chapterNum}`);
   return message;
 }
 
-/**
- * Envía un anuncio manual con todas las opciones (desde /anunciar).
- */
 async function sendManualAnnouncement(client, project, chapData, options = {}) {
   if (!client?.isReady()) return null;
 
@@ -145,16 +127,18 @@ async function sendManualAnnouncement(client, project, chapData, options = {}) {
   if (!channel) return null;
 
   const text = buildAnnouncementText(project, chapData, options);
+  const baseRole = project.readerRoleId || project.roleId || null;
 
-  // Si hay portada, enviarla como imagen adjunta al mismo mensaje
-  const messagePayload = { content: text };
+  const messagePayload = {
+    content: text,
+    allowedMentions: buildAllowedMentions(options.extraRoles || [], baseRole),
+  };
   if (options.imageUrl) {
     messagePayload.files = [{ attachment: options.imageUrl, name: 'portada.jpg' }];
   }
 
   const message = await channel.send(messagePayload);
   await addReactions(message, project.reactions || REACTIONS.newChapter);
-
   return message;
 }
 
@@ -162,7 +146,7 @@ async function addReactions(message, reactions) {
   for (const emoji of reactions) {
     try {
       await message.react(emoji);
-      await sleep(400); // pausa entre reacciones para no saturar la API
+      await sleep(400);
     } catch (err) {
       logger.warn('Announcer', `No se pudo reaccionar con ${emoji}: ${err.message}`);
     }
