@@ -250,16 +250,21 @@ function registrarPostTimeoutGrosero(userId) {
 }
 
 // ── Keywords de groserías ─────────────────────────────────────────────────────
+// IMPORTANTE: cualquier palabra aquí debe estar también en groseriaKeys de respuestaValk()
 const GROSERIA_KEYS = [
   'idiota', 'estupida', 'estupido', 'imbecil', 'inutil', 'basura', 'mierda', 'puta',
   'puto', 'pendeja', 'pendejo', 'hdp', 'malparida', 'malparido', 'gonorrea', 'hijueputa',
   'marica', 'boluda', 'pelotuda', 'gilipolla', 'subnormal', 'retrasada', 'retrasado',
-  'cállate', 'callate', 'calla', 'odio', 'te odio', 'asco', 'me das asco',
-  'lenta', 'tonta', 'boba', 'mala', 'pésima', 'pesima', 'horrible',
+  'callate', 'calla', 'odio', 'te odio', 'asco', 'me das asco',
+  'lenta', 'tonta', 'boba', 'mala', 'pesima', 'horrible',
+  'zorra', 'perra', 'bruta', 'trash', 'fea', 'odiosa', 'molesta',
 ];
 
 function esGroseria(texto) {
-  const limpio = texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  // Limpiar tildes Y puntuación para no fallar con "zorra!" o "¡idiota"
+  const limpio = texto.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[¿?¡!.,;:]/g, '');
   return GROSERIA_KEYS.some(k => limpio.includes(k));
 }
 
