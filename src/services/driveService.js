@@ -138,11 +138,16 @@ async function analyzeChapters(projectFolderId) {
         if (!stageFolder) return [key, { exists: false, done: false, credit: null, fileCount: 0 }];
 
         const stageItems = await listFolder(stageFolder.id);
-        const fileCount  = stageItems.filter(f => !isFolder(f)).length;
+        const allFiles   = stageItems.filter(f => !isFolder(f));
+        const fileCount  = allFiles.length;
         const credit     = cfg.trackCredits ? extractCredit(stageFolder.name, cfg.prefixes) : null;
         // done solo si tiene archivos reales — carpeta vacía no cuenta como completada
         const done       = fileCount > 0;
-        return [key, { exists: true, done, credit, fileCount, folderName: stageFolder.name, nameChanged: credit !== null }];
+        // uploaded: true si existe el archivo 000.jpg (portada) dentro del stage final
+        const uploaded   = key === 'final'
+          ? allFiles.some(f => f.name.toLowerCase().startsWith('000.'))
+          : false;
+        return [key, { exists: true, done, credit, fileCount, uploaded, folderName: stageFolder.name, nameChanged: credit !== null }];
       }));
 
       stageResults.forEach(([key, val]) => { capData.stages[key] = val; });
@@ -178,10 +183,11 @@ async function getProjectStatus(projectName, category = null, forceRefresh = fal
 
     // Resumen general
     const summary = {
-      total: totalCaps,
-      withClean: chapters.filter(c => c.stages.clean?.done).length,
-      withTrad:  chapters.filter(c => c.stages.trad?.done).length,
-      withFinal: chapters.filter(c => c.stages.final?.done).length,
+      total:        totalCaps,
+      withClean:    chapters.filter(c => c.stages.clean?.done).length,
+      withTrad:     chapters.filter(c => c.stages.trad?.done).length,
+      withFinal:    chapters.filter(c => c.stages.final?.done).length,
+      withUploaded: chapters.filter(c => c.stages.final?.uploaded).length,
     };
 
     const result = {
@@ -237,21 +243,32 @@ function buildChapterStatusLine(cap) {
   const E = STATUS_EMOJI;
   const s = cap.stages;
 
-  function icon(stage) {
+  // Si clean no existe pero hay trad o final, es un cap sin clean intencionalmente
+  const sinClean = !s.clean?.exists && (s.trad?.done || s.final?.done);
+
+  function icon(stage, key) {
+    if (key === 'clean' && sinClean) return '➖'; // sin clean intencional
     if (!stage?.exists) return E.unknown;
     if (!stage.done)    return E.empty;
+    // Para final: mostrar si está subido o solo terminado
+    if (key === 'final' && stage.done) return stage.uploaded ? '🟢' : E.done;
     return E.done;
   }
 
-  function label(stage, cfg) {
+  function label(stage, cfg, key) {
+    if (key === 'clean' && sinClean) return `${cfg.label} (N/A)`;
     if (!stage?.done) return cfg.label;
+    if (key === 'final' && stage.done) {
+      const base = stage.credit ? `${cfg.label} (${stage.credit})` : cfg.label;
+      return stage.uploaded ? `${base} — subido` : `${base} — listo, no subido`;
+    }
     return stage.credit ? `${cfg.label} (${stage.credit})` : cfg.label;
   }
 
   return (
-    `${icon(s.clean)} ${label(s.clean, CHAPTER_FOLDERS.clean)}  ` +
-    `${icon(s.trad)}  ${label(s.trad, CHAPTER_FOLDERS.trad)}  ` +
-    `${icon(s.final)} ${label(s.final, CHAPTER_FOLDERS.final)}`
+    `${icon(s.clean, 'clean')} ${label(s.clean, CHAPTER_FOLDERS.clean, 'clean')}  ` +
+    `${icon(s.trad,  'trad')}  ${label(s.trad,  CHAPTER_FOLDERS.trad,  'trad')}  ` +
+    `${icon(s.final, 'final')} ${label(s.final, CHAPTER_FOLDERS.final, 'final')}`
   );
 }
 

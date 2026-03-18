@@ -95,9 +95,10 @@ async function sendSingleStatus(interaction, project, forceRefresh = false) {
     embed.addFields({
       name: `📂 Drive — ${totalCaps} capítulo(s) en carpeta`,
       value: [
-        `\`${buildBar(summary.withClean, totalCaps)}\` 🧹 Cleans: **${summary.withClean}/${totalCaps}**`,
-        `\`${buildBar(summary.withTrad,  totalCaps)}\` 📝 Traducciones: **${summary.withTrad}/${totalCaps}**`,
-        `\`${buildBar(summary.withFinal, totalCaps)}\` ✏️ Finals/Typeo: **${summary.withFinal}/${totalCaps}**`,
+        `\`${buildBar(summary.withClean,    totalCaps)}\` 🧹 Cleans: **${summary.withClean}/${totalCaps}**`,
+        `\`${buildBar(summary.withTrad,     totalCaps)}\` 📝 Traducciones: **${summary.withTrad}/${totalCaps}**`,
+        `\`${buildBar(summary.withFinal,    totalCaps)}\` ✏️ Finals/Typeo: **${summary.withFinal}/${totalCaps}**`,
+        `\`${buildBar(summary.withUploaded, totalCaps)}\` 🟢 Subidos a plataforma: **${summary.withUploaded}/${totalCaps}**`,
       ].join('\n'),
       inline: false,
     });
