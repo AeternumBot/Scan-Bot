@@ -892,6 +892,24 @@ async function routeIntent(intent, step, data, message) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// REGISTRO DE MENSAJES MANEJADOS POR EL AGENTE
+// Previene que suaMention procese el mismo mensaje
+// ────────────────────────────────────────────────────────────────────────────
+const _handledByAgent = new Set();
+
+function markHandled(messageId) {
+  _handledByAgent.add(messageId);
+  // Limpiar después de 10s para no acumular memoria
+  setTimeout(() => _handledByAgent.delete(messageId), 10_000);
+}
+
+function wasHandled(messageId) {
+  return _handledByAgent.has(messageId);
+}
+
+module.exports.wasHandled = wasHandled;
+
+// ────────────────────────────────────────────────────────────────────────────
 // HANDLER PRINCIPAL DEL EVENTO messageCreate
 // ────────────────────────────────────────────────────────────────────────────
 module.exports = {
@@ -942,6 +960,9 @@ module.exports = {
       } else if (result.nextStep) {
         setSession(message.author.id, { ...session, step: result.nextStep, data: session.data });
       }
+
+      // Marcar como manejado ANTES de responder para que suaMention no lo toque
+      markHandled(message.id);
 
       // Enviar respuesta
       if (result.reply)  await message.reply(result.reply).catch(() => {});
@@ -1009,6 +1030,9 @@ module.exports = {
     });
 
     if (!result) return;
+
+    // Marcar como manejado ANTES de responder para que suaMention no lo toque
+    markHandled(message.id);
 
     if (!result.done && result.nextStep) {
       setSession(message.author.id, { intent, step: result.nextStep, data, guildId: message.guildId, channelId: message.channelId });
