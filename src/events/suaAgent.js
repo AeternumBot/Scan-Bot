@@ -153,7 +153,7 @@ function detectIntent(text) {
   if (/avisa(r|me)?\b|publica(r)?.{0,8}aviso|manda(r)?.{0,8}(aviso|comunicado)|haz?.{0,8}(un )?anuncio|comunicado oficial/.test(t)) return 'avisar';
 
   // ── Status / progreso ────────────────────────────────────────────────────
-  if (/\bstatus\b|como van?\b|en que van\b|revisa(r)?.{0,8}(el )?(estado|progreso|avance)|progreso de|avance de|que (tienen|hay) en drive|como estan? (el|los) proyecto/.test(t)) return 'status';
+  if (/\bstatus\b|\bestatus\b|como van?\b|en que van\b|revisa(r)?.{0,8}(el )?(estado|estatus|progreso|avance)|progreso de|avance de|que (tienen|hay) en drive|como estan? (el|los) proyecto/.test(t)) return 'status';
 
   // ── Salud ────────────────────────────────────────────────────────────────
   if (/\bsalud\b|diagnostico|como estas? (tu|usted)\b|te funcionas?\b|estas? bien\b|todo (bien|ok) (contigo|con vos)/.test(t)) return 'salud';
@@ -772,69 +772,285 @@ async function execAvisar(data, message) {
 
 // ── status ────────────────────────────────────────────────────────────────────
 async function flowStatus(step, data, message) {
-  if (step === 'start') {
-    if (data.proyectoId) {
-      return execStatus(data, message);
-    }
-    // Mostrar todos
-    const projects = Projects.list().filter(p => p.active);
-    if (!projects.length) return { reply: SUA.status.sinActivos, done: true };
-    const lines = projects.map(p => {
-      const last = require('../utils/storage').LastChapters.get(p.id, 'tmo')
-        || require('../utils/storage').LastChapters.get(p.id, 'colorcito');
-      return `${p.active ? '🟢' : '🔴'} **${p.name}** — último cap: **${last?.chapterNum || '—'}**`;
-    });
-    const embed = new EmbedBuilder()
-      .setTitle('📊 Estado de proyectos activos')
-      .setColor(0x9b59b6)
-      .setDescription(lines.join('\n'))
-      .setFooter({ text: 'Revisé todo con mucho cuidado (っ˘ω˘ς)' });
-    return { embeds: [embed], done: true };
-  }
+  if (step !== 'start') return null;
+
+  // Con proyecto específico
+  if (data.proyectoId) return execStatus(data);
+
+  // Sin proyecto → mostrar resumen de todos los activos
+  const projects = Projects.list().filter(p => p.active);
+  if (!projects.length) return { reply: SUA.status.sinActivos, done: true };
+
+  const lines = projects.map(p => {
+    const lastTmo   = LastChapters.get(p.id, 'tmo');
+    const lastColor = LastChapters.get(p.id, 'colorcito');
+    const last = lastTmo || lastColor;
+    return `${p.active ? '🟢' : '🔴'} **${p.name}** — último cap: **${last?.chapterNum || '—'}**`;
+  });
+
+  const embed = new EmbedBuilder()
+    .setTitle('📊 Estado de proyectos activos')
+    .setColor(0x9b59b6)
+    .setDescription(lines.join('\n'))
+    .setFooter({ text: 'Revisé todo con mucho cuidado (っ˘ω˘ς)' });
+  return { embeds: [embed], done: true };
 }
-async function execStatus(data, message) {
+
+async function execStatus(data) {
   const p = Projects.get(data.proyectoId);
   if (!p) return { reply: SUA.proyecto.noEncontrado(data.proyectoId), done: true };
-  // Delegar al comando status completo
-  const statusCmd = require('./status');
-  // Como no tenemos interaction, hacemos un mini-embed
-  const last = require('../utils/storage').LastChapters.get(p.id, 'tmo')
-    || require('../utils/storage').LastChapters.get(p.id, 'colorcito');
+
+  const lastTmo   = LastChapters.get(p.id, 'tmo');
+  const lastColor = LastChapters.get(p.id, 'colorcito');
+  const last      = lastTmo || lastColor;
+
+  const statusLabels = {
+    ongoing: '📖 En curso', completed: '✅ Completado',
+    hiatus: '⏸️ Hiatus', dropped: '❌ Dropeado',
+  };
+
+  // Intentar obtener datos de Drive
+  let driveField = null;
+  try {
+    const ds = await driveService().getProjectStatus(p.driveFolder, p.category);
+    if (ds.found) {
+      const { summary, totalCaps } = ds;
+      driveField = [
+        `🧹 Cleans: **${summary.withClean}/${totalCaps}**`,
+        `📝 Traducciones: **${summary.withTrad}/${totalCaps}**`,
+        `✏️ Finals: **${summary.withFinal}/${totalCaps}**`,
+        `🟢 Subidos: **${summary.withUploaded}/${totalCaps}**`,
+      ].join('  ·  ');
+    }
+  } catch { /* Drive no disponible, no es crítico */ }
+
   const embed = new EmbedBuilder()
     .setTitle(`📊 ${p.name}`)
     .setColor(0x9b59b6)
     .addFields(
-      { name: 'Último capítulo', value: last ? `Cap. **${last.chapterNum}**` : 'Sin datos', inline: true },
-      { name: 'Estado', value: p.status, inline: true },
-      { name: 'Activo', value: p.active ? '✅' : '🔴', inline: true },
+      { name: 'Último capítulo', value: last ? `Cap. **${last.chapterNum}**` : 'Sin datos aún', inline: true },
+      { name: 'Estado',          value: statusLabels[p.status] || p.status,                    inline: true },
+      { name: 'Activo',          value: p.active ? '✅ Sí' : '🔴 No',                          inline: true },
     )
     .setFooter({ text: 'Aquí está lo que encontré (っ˘ω˘ς)' });
+
+  if (driveField) embed.addFields({ name: '📂 Google Drive', value: driveField, inline: false });
   if (p.thumbnail) embed.setThumbnail(p.thumbnail);
+
   return { embeds: [embed], done: true };
 }
 
 // ── salud ─────────────────────────────────────────────────────────────────────
 async function flowSalud(message) {
-  const checks = [];
-  let todosBien = true;
+  // Aviso inmediato — el diagnóstico puede tardar unos segundos
+  await message.channel.send(pick([
+    `D-dame un momento, me voy a revisar bien antes de responder ${K.tranqui()}`,
+    `Voy a hacerme un chequeo completo, ya vuelvo ${K.feliz()}`,
+    `E-espera un poquito, me estoy revisando por dentro ${K.timida()}`,
+  ]));
+
+  const fields   = [];   // campos del embed
+  let   errores  = 0;
+  let   warnings = 0;
+
+  // ── 1. Discord ──────────────────────────────────────────────────────────
   const ping = message.client.ws.ping;
-  if (ping < 200) checks.push(`✅ Conexión con Discord: **${ping}ms** (っ˘ω˘ς)`);
-  else { checks.push(`⚠️ Conexión con Discord lenta: **${ping}ms** ${K.timida()}`); todosBien = false; }
+  let discordLine;
+  if      (ping < 150) discordLine = `✅ Latencia: **${ping}ms** — perfecta`;
+  else if (ping < 350) { discordLine = `⚠️ Latencia: **${ping}ms** — un poco lenta`; warnings++; }
+  else                 { discordLine = `❌ Latencia: **${ping}ms** — muy lenta`; errores++; }
 
-  const projects = Projects.list();
-  checks.push(`✅ **${projects.length}** proyecto(s), **${projects.filter(p=>p.active).length}** activo(s)`);
+  // Uptime del proceso
+  const uptimeSeg = Math.floor(process.uptime());
+  const hh = Math.floor(uptimeSeg / 3600);
+  const mm = Math.floor((uptimeSeg % 3600) / 60);
+  const uptimeStr = hh > 0 ? `${hh}h ${mm}m` : `${mm}m`;
 
-  try {
-    await driveService().listFolder(process.env.GDRIVE_ROOT_FOLDER_ID);
-    checks.push(`✅ Google Drive conectado (◕‿◕✿)`);
-  } catch {
-    checks.push(`❌ No pude conectarme con Google Drive (;ω;)`); todosBien = false;
+  // Memoria
+  const mem = process.memoryUsage();
+  const memMB = Math.round(mem.heapUsed / 1024 / 1024);
+  const memTotalMB = Math.round(mem.heapTotal / 1024 / 1024);
+  const memLine = memMB < 300
+    ? `✅ Memoria: **${memMB}/${memTotalMB} MB**`
+    : `⚠️ Memoria: **${memMB}/${memTotalMB} MB** — algo alta`;
+  if (memMB >= 300) warnings++;
+
+  fields.push({
+    name: '🤖 Discord & Sistema',
+    value: [
+      discordLine,
+      memLine,
+      `✅ Uptime: **${uptimeStr}**`,
+      `✅ Node.js: **${process.version}**`,
+    ].join('\n'),
+    inline: false,
+  });
+
+  // ── 2. Variables de entorno ─────────────────────────────────────────────
+  const VARS_REQUERIDAS = [
+    'DISCORD_TOKEN', 'DISCORD_CLIENT_ID', 'DISCORD_GUILD_ID',
+    'GDRIVE_ROOT_FOLDER_ID', 'ANNOUNCEMENT_CHANNEL_ID',
+  ];
+  const VARS_OPCIONALES = [
+    'DISCORD_READER_GUILD_ID', 'ANNOUNCER_ROLE_ID', 'MOD_ROLE_ID',
+    'NOTICE_CHANNEL_ID', 'STAFF_NOTICE_ID', 'COVERS_CHANNEL_ID',
+    'GOOGLE_SERVICE_ACCOUNT_KEY', 'CHECK_INTERVAL_MINUTES', 'TIMEZONE',
+  ];
+
+  const faltanReq = VARS_REQUERIDAS.filter(v => !process.env[v]);
+  const faltanOpt = VARS_OPCIONALES.filter(v => !process.env[v]);
+
+  let envLines = [];
+  if (faltanReq.length === 0) {
+    envLines.push(`✅ Variables obligatorias: todas presentes`);
+  } else {
+    envLines.push(`❌ Faltan obligatorias: \`${faltanReq.join(', ')}\``);
+    errores++;
+  }
+  if (faltanOpt.length === 0) {
+    envLines.push(`✅ Variables opcionales: todas configuradas`);
+  } else {
+    envLines.push(`⚠️ Opcionales sin configurar: \`${faltanOpt.join(', ')}\``);
+    warnings++;
   }
 
-  const intro = todosBien
-    ? `Me revisé y todo está en orden ${K.feliz()}\n\n`
-    : `E-eh... me revisé y encontré algunos problemas ${K.timida()}\n\n`;
-  return { reply: intro + checks.join('\n'), done: true };
+  fields.push({ name: '⚙️ Variables de entorno', value: envLines.join('\n'), inline: false });
+
+  // ── 3. Google Drive ─────────────────────────────────────────────────────
+  let driveLines = [];
+  try {
+    const folders = await driveService().listFolder(process.env.GDRIVE_ROOT_FOLDER_ID);
+    const n = Array.isArray(folders) ? folders.length : '?';
+    driveLines.push(`✅ Conexión OK — **${n}** carpeta(s) raíz visible(s)`);
+  } catch (err) {
+    driveLines.push(`❌ Sin conexión: \`${err.message?.slice(0, 80)}\``);
+    errores++;
+  }
+  fields.push({ name: '📂 Google Drive', value: driveLines.join('\n'), inline: false });
+
+  // ── 4. Proyectos ────────────────────────────────────────────────────────
+  const proyectos       = Projects.list();
+  const activos         = proyectos.filter(p => p.active);
+  const sinCanal        = proyectos.filter(p => !p.announcementChannel && !process.env.ANNOUNCEMENT_CHANNEL_ID);
+  const sinFuentes      = proyectos.filter(p => !p.sources?.tmo && !p.sources?.colorcito);
+  const sinDrive        = proyectos.filter(p => !p.driveFolder);
+  const sinPortada      = proyectos.filter(p => !p.thumbnail);
+
+  let projLines = [
+    `✅ Total: **${proyectos.length}** proyecto(s) | Activos: **${activos.length}**`,
+  ];
+  if (sinCanal.length)   { projLines.push(`⚠️ Sin canal de anuncios: ${sinCanal.map(p=>`\`${p.id}\``).join(', ')}`);   warnings++; }
+  if (sinFuentes.length) { projLines.push(`⚠️ Sin fuentes (TMO/Colorcito): ${sinFuentes.map(p=>`\`${p.id}\``).join(', ')}`); warnings++; }
+  if (sinDrive.length)   { projLines.push(`⚠️ Sin carpeta Drive: ${sinDrive.map(p=>`\`${p.id}\``).join(', ')}`);        warnings++; }
+  if (sinPortada.length) { projLines.push(`ℹ️ Sin portada: ${sinPortada.map(p=>`\`${p.id}\``).join(', ')}`); }
+  if (!sinCanal.length && !sinFuentes.length && !sinDrive.length) {
+    projLines.push(`✅ Todos los proyectos están bien configurados`);
+  }
+  fields.push({ name: '📋 Proyectos', value: projLines.join('\n'), inline: false });
+
+  // ── 5. Scraper TMO ──────────────────────────────────────────────────────
+  const proyConTmo = activos.find(p => p.sources?.tmo);
+  let tmoLine;
+  if (!proyConTmo) {
+    tmoLine = `ℹ️ Sin proyectos activos con TMO para probar`;
+  } else {
+    try {
+      const res = await Promise.race([
+        tmo().getLatestChapter(proyConTmo.sources.tmo),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout (8s)')), 8000)),
+      ]);
+      tmoLine = res
+        ? `✅ Responde OK — último cap detectado: **${res.chapterNum}** en \`${proyConTmo.id}\``
+        : `⚠️ Respondió pero sin datos`;
+      if (!res) warnings++;
+    } catch (err) {
+      tmoLine = `❌ Sin respuesta: \`${err.message}\``;
+      errores++;
+    }
+  }
+
+  // ── 6. Scraper Colorcito ────────────────────────────────────────────────
+  const proyConColor = activos.find(p => p.sources?.colorcito);
+  let colorLine;
+  if (!proyConColor) {
+    colorLine = `ℹ️ Sin proyectos activos con Colorcito para probar`;
+  } else {
+    try {
+      const res = await Promise.race([
+        colorcito().getLatestChapter(proyConColor.sources.colorcito),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout (8s)')), 8000)),
+      ]);
+      colorLine = res
+        ? `✅ Responde OK — último cap detectado: **${res.chapterNum}** en \`${proyConColor.id}\``
+        : `⚠️ Respondió pero sin datos`;
+      if (!res) warnings++;
+    } catch (err) {
+      colorLine = `❌ Sin respuesta: \`${err.message}\``;
+      errores++;
+    }
+  }
+
+  fields.push({
+    name: '🔍 Scrapers',
+    value: [`📖 TMO: ${tmoLine}`, `🎨 Colorcito: ${colorLine}`].join('\n'),
+    inline: false,
+  });
+
+  // ── 7. Canales configurados ─────────────────────────────────────────────
+  const anuncioId = process.env.ANNOUNCEMENT_CHANNEL_ID;
+  const noticeId  = process.env.NOTICE_CHANNEL_ID || process.env.STAFF_NOTICE_ID;
+  let canalLines = [];
+  canalLines.push(anuncioId ? `✅ Canal de anuncios: <#${anuncioId}>` : `⚠️ Canal de anuncios: no configurado`);
+  canalLines.push(noticeId  ? `✅ Canal de avisos: configurado`         : `⚠️ Canal de avisos: no configurado`);
+  if (!anuncioId) warnings++;
+  fields.push({ name: '📢 Canales', value: canalLines.join('\n'), inline: false });
+
+  // ── Resumen y color del embed ───────────────────────────────────────────
+  const color   = errores > 0 ? 0xe74c3c : warnings > 0 ? 0xf39c12 : 0x2ecc71;
+  const icono   = errores > 0 ? '🔴' : warnings > 0 ? '🟡' : '🟢';
+  const resumen = errores > 0
+    ? `${icono} **${errores}** error(es) y **${warnings}** aviso(s) encontrados`
+    : warnings > 0
+    ? `${icono} Todo funciona, pero hay **${warnings}** aviso(s) que revisar`
+    : `${icono} ¡Todo en orden! Ningún problema encontrado`;
+
+  const intros = errores > 0 ? [
+    `E-eh... me revisé y encontré algunos problemas... ${K.triste()} Te los cuento:`,
+    `A-ay... hay cosas que no están bien. No quería decirlo pero... ${K.triste()} aquí está el reporte:`,
+    `M-me revisé con cuidado y... hay cosas que mejorar ${K.disculpa()} Mira:`,
+  ] : warnings > 0 ? [
+    `Me revisé y en general estoy bien, pero hay algunas cosas que quería comentarte ${K.tranqui()}`,
+    `Todo funciona, p-pero encontré algunos detalles que vale la pena revisar ${K.timida()}`,
+    `¡Sigo de pie! Aunque tengo un par de avisos para ti ${K.tranqui()}`,
+  ] : [
+    `¡Me revisé completo y todo está perfecto! ${K.feliz()} Aquí el reporte:`,
+    `Me hice el chequeo más completo que pude y... ¡todo en orden! ${K.feliz()}`,
+    `Todo funciona de maravilla, aquí está el reporte completo ${K.feliz()}`,
+  ];
+
+  const cierres = errores > 0 ? [
+    `*V-valk debería revisar esto cuando pueda... ${K.triste()}*`,
+    `*Disculpen las molestias, haré lo mejor que pueda mientras tanto (´• ω •\`)ゞ*`,
+    `*Espero que se resuelva pronto... yo sigo trabajando ${K.timida()}*`,
+  ] : warnings > 0 ? [
+    `*No es urgente, p-pero mejor revisarlo pronto ${K.tranqui()}*`,
+    `*En general estoy bien, solo hay cositas menores (っ˘ω˘ς)*`,
+    `*Sigo funcionando normal, pero avísale a Valk ${K.timida()}*`,
+  ] : [
+    `*Estaré aquí siempre que me necesiten (っ˘ω˘ς)*`,
+    `*Lista para lo que sea ${K.feliz()}*`,
+    `*Todo bajo control, ¡gracias por preguntar! (◕‿◕✿)*`,
+  ];
+
+  const embed = new EmbedBuilder()
+    .setTitle(`🩺 Diagnóstico completo de Sua`)
+    .setDescription(`${pick(intros)}\n\n${resumen}`)
+    .setColor(color)
+    .addFields(fields)
+    .setFooter({ text: pick(cierres) })
+    .setTimestamp();
+
+  return { embeds: [embed], done: true };
 }
 
 // ── sincronizar ───────────────────────────────────────────────────────────────
