@@ -118,44 +118,70 @@ function clearSession(userId) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// DETECCIÓN DE INTENCIÓN
 // ────────────────────────────────────────────────────────────────────────────
-function detectIntent(text) {
-  const t = text.toLowerCase()
+// DETECCIÓN DE INTENCIÓN — lenguaje natural + nombres de proyectos dinámicos
+// ────────────────────────────────────────────────────────────────────────────
+function normalize(str) {
+  return str.toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/<@!?\d+>/g, '').trim();
+    .replace(/<@!?\d+>/g, '')
+    .replace(/[¿?¡!.,]/g, '')
+    .trim();
+}
 
-  // Moderación
-  if (/banear?|ban\b/.test(t))                    return 'mod.ban';
-  if (/expulsar?|kick\b|echar/.test(t))           return 'mod.kick';
-  if (/dar.?rol|asignar.?rol|dar.?cargo/.test(t)) return 'mod.darRol';
-  if (/quitar.?rol|sacar.?rol|remover.?rol/.test(t)) return 'mod.quitarRol';
+function detectIntent(text) {
+  const t = normalize(text);
 
-  // Proyectos
-  if (/agregar?.?proyecto|add.?proyecto|registrar?.?proyecto|nuevo.?proyecto|a[ñn]adir.?proyecto/.test(t)) return 'proyecto.add';
-  if (/eliminar?.?proyecto|borrar?.?proyecto|remover?.?proyecto|quitar?.?proyecto/.test(t)) return 'proyecto.remove';
-  if (/activar.?proyecto|desactivar.?proyecto|toggle.?proyecto|pausar.?proyecto/.test(t)) return 'proyecto.toggle';
-  if (/estado.?proyecto|cambiar.?estado|setstatus/.test(t)) return 'proyecto.setstatus';
-  if (/info.?proyecto|informacion.?proyecto|detalles.?proyecto/.test(t)) return 'proyecto.info';
-  if (/listar?.?proyecto|lista.?proyecto|proyectos\b/.test(t)) return 'proyecto.list';
+  // ── Moderación ──────────────────────────────────────────────────────────
+  if (/\bban(ea?r?|ear)?\b/.test(t)) return 'mod.ban';
+  if (/expulsa(r|lo|la)?|echa(r|lo|la)?(\s+del?\s+(servidor|server))?|kick|saca(r|lo|la)?\s+del\s+(servidor|server)/.test(t)) return 'mod.kick';
+  if (/da(r|le)?.{0,6}rol|asigna(r|le)?.{0,6}rol|pone(r|le)?.{0,6}rol|da(r|le)?.{0,6}cargo/.test(t)) return 'mod.darRol';
+  if (/quita(r|le)?.{0,6}rol|saca(r|le)?.{0,6}rol|remov(er|e).{0,6}rol|quita(r|le)?.{0,6}cargo/.test(t)) return 'mod.quitarRol';
 
-  // Anunciar
-  if (/anunciar?|publicar?.?cap|subir.?cap/.test(t)) return 'anunciar';
+  // ── Proyectos ────────────────────────────────────────────────────────────
+  if (/agrega(r|me)?.{0,8}proyecto|registra(r|me)?.{0,8}proyecto|a[nn]ade?.{0,8}proyecto|mete(r)?.{0,8}proyecto|nuevo proyecto|proyecto nuevo/.test(t)) return 'proyecto.add';
+  if (/elimina(r)?.{0,8}proyecto|borra(r)?.{0,8}proyecto|quita(r)?.{0,8}proyecto|remueve?.{0,8}proyecto/.test(t)) return 'proyecto.remove';
+  if (/activa(r)?.{0,8}proyecto|desactiva(r)?.{0,8}proyecto|pausa(r)?.{0,8}proyecto|reanuda(r)?.{0,8}proyecto/.test(t)) return 'proyecto.toggle';
+  if (/cambia(r)?.{0,8}estado|pon(er|lo|la)?.{0,6}(en hiatus|en pausa|como completado|como dropeado|en curso)|setstatus/.test(t)) return 'proyecto.setstatus';
+  if (/(info|informacion|detalles|datos|cuentame).{0,8}(del? )?proyecto|que (tiene|hay) en el proyecto/.test(t)) return 'proyecto.info';
+  if (/lista(r)?.{0,8}proyectos|ver.{0,8}proyectos|que proyectos (hay|tienes|manejas)|todos los proyectos|proyectos registrados/.test(t)) return 'proyecto.list';
 
-  // Avisar
-  if (/avisar?|aviso\b|comunicado|publicar?.?aviso/.test(t)) return 'avisar';
+  // ── Anunciar ─────────────────────────────────────────────────────────────
+  if (/anuncia(r|lo)?\b|publica(r)?.{0,8}cap(itulo)?|sube?.{0,8}cap(itulo)?|saca(r)?.{0,8}cap(itulo)?/.test(t)) return 'anunciar';
 
-  // Status
-  if (/\bstatus\b|estado.?drive|como.?va|progreso/.test(t)) return 'status';
+  // ── Avisar ───────────────────────────────────────────────────────────────
+  if (/avisa(r|me)?\b|publica(r)?.{0,8}aviso|manda(r)?.{0,8}(aviso|comunicado)|haz?.{0,8}(un )?anuncio|comunicado oficial/.test(t)) return 'avisar';
 
-  // Salud
-  if (/salud\b|diagnostico|como.?estas?.?tu|te.?funciona/.test(t)) return 'salud';
+  // ── Status / progreso ────────────────────────────────────────────────────
+  if (/\bstatus\b|como van?\b|en que van\b|revisa(r)?.{0,8}(el )?(estado|progreso|avance)|progreso de|avance de|que (tienen|hay) en drive|como estan? (el|los) proyecto/.test(t)) return 'status';
 
-  // Sincronizar
-  if (/sincronizar?|actualizar?.?cache|sync\b/.test(t)) return 'sincronizar';
+  // ── Salud ────────────────────────────────────────────────────────────────
+  if (/\bsalud\b|diagnostico|como estas? (tu|usted)\b|te funcionas?\b|estas? bien\b|todo (bien|ok) (contigo|con vos)/.test(t)) return 'salud';
 
-  // Buscar
-  if (/buscar?\b|search\b/.test(t)) return 'buscar';
+  // ── Sincronizar ──────────────────────────────────────────────────────────
+  if (/sincroniza(r)?\b|actualiza(r)?.{0,8}cache|sync\b|refresca(r)?.{0,8}(cap|datos)|ponme al dia/.test(t)) return 'sincronizar';
+
+  // ── Buscar ───────────────────────────────────────────────────────────────
+  if (/busca(r|me)?\b|search\b|encuentra(r)?\b|existe.{0,8}en (tmo|colorcito)|esta.{0,8}en (tmo|colorcito)/.test(t)) return 'buscar';
+
+  // ── Detección dinámica por nombre de proyecto ────────────────────────────
+  // Si el mensaje menciona el nombre de un proyecto conocido + verbo de acción,
+  // se infiere la intención sin necesidad de decir "proyecto"
+  const proyectos = Projects.list();
+  for (const p of proyectos) {
+    const nombreN = normalize(p.name);
+    const idN     = normalize(p.id);
+    if (!t.includes(nombreN) && !t.includes(idN)) continue;
+
+    if (/revisa(r)?|status|como va|progreso|avance|en que van|estado/.test(t)) return 'status';
+    if (/elimina(r)?|borra(r)?|quita(r)?|remueve?/.test(t))                    return 'proyecto.remove';
+    if (/activa(r)?|desactiva(r)?|pausa(r)?|reanuda(r)?/.test(t))              return 'proyecto.toggle';
+    if (/(info|detalles|datos|cuentame)/.test(t))                               return 'proyecto.info';
+    if (/anuncia(r)?|publica(r)?|cap(itulo)?/.test(t))                         return 'anunciar';
+    if (/estado|hiatus|completado|dropeado|curso/.test(t))                      return 'proyecto.setstatus';
+    // Solo mencionan el nombre sin verbo claro → mostrar info
+    return 'proyecto.info';
+  }
 
   return null;
 }
@@ -165,20 +191,20 @@ function detectIntent(text) {
 // ────────────────────────────────────────────────────────────────────────────
 function extractFromMessage(text, mentions) {
   const extracted = {};
+  const t = normalize(text);
 
-  // Usuario mencionado
+  // Usuario mencionado (no bot)
   const mentionedUser = mentions.users.filter(u => !u.bot).first();
   if (mentionedUser) extracted.targetUser = mentionedUser;
 
-  // Miembro mencionado
   const mentionedMember = mentions.members?.filter(m => !m.user.bot).first();
   if (mentionedMember) extracted.targetMember = mentionedMember;
 
-  // Razón (después de palabras clave)
-  const razonMatch = text.match(/(?:por|razon|motivo|porque)[:\s]+(.+)/i);
+  // Razón — "por", "porque", "motivo", "razón", "ya que"
+  const razonMatch = text.match(/(?:por(?:que)?|razon|motivo|ya que)[:\s]+(.+)/i);
   if (razonMatch) extracted.razon = razonMatch[1].trim();
 
-  // Número de capítulo
+  // Número de capítulo — "cap 12", "capítulo 3.5", "el cap 47"
   const capMatch = text.match(/cap(?:itulo)?\.?\s*(\d+(?:[.,]\d+)?)/i);
   if (capMatch) extracted.capitulo = capMatch[1];
 
@@ -186,23 +212,42 @@ function extractFromMessage(text, mentions) {
   const urlMatch = text.match(/(https?:\/\/[^\s]+)/);
   if (urlMatch) extracted.url = urlMatch[1];
 
-  // Rol de staff mencionado
-  const rolKeys = Object.keys(STAFF_ROLES);
-  for (const key of rolKeys) {
-    if (text.toLowerCase().includes(key) || text.toLowerCase().includes(STAFF_ROLES[key].name.toLowerCase())) {
+  // Rol de staff — nombre o key
+  for (const [key, info] of Object.entries(STAFF_ROLES)) {
+    if (t.includes(key) || t.includes(normalize(info.name))) {
       extracted.rolKey = key;
       break;
     }
   }
 
-  // Nombre (para proyectos — texto en comillas o después de "llamado/nombre")
-  const nombreMatch = text.match(/(?:llamado|nombre[:\s]+|proyecto[:\s]+)"?([^"]+)"?/i);
+  // Proyecto por nombre o ID — busca en proyectos registrados dinámicamente
+  const proyectos = Projects.list();
+  for (const p of proyectos) {
+    if (t.includes(normalize(p.name)) || t.includes(normalize(p.id))) {
+      extracted.proyectoId   = p.id;
+      extracted.proyectoName = p.name;
+      break;
+    }
+  }
+
+  // Nombre nuevo de proyecto — entre comillas o tras "llamado"/"se llama"
+  const nombreMatch = text.match(/(?:llamado|se llama|nombre[:\s]+)"?([^"\n]+)"?/i);
   if (nombreMatch) extracted.nombre = nombreMatch[1].trim();
+
+  // Estado mencionado en el texto
+  const estadoMap = {
+    'en curso': 'ongoing', 'ongoing': 'ongoing',
+    'completado': 'completed', 'terminado': 'completed', 'completed': 'completed',
+    'hiatus': 'hiatus', 'en pausa': 'hiatus', 'pausado': 'hiatus',
+    'dropeado': 'dropped', 'cancelado': 'dropped', 'dropped': 'dropped',
+  };
+  for (const [keyword, value] of Object.entries(estadoMap)) {
+    if (t.includes(keyword)) { extracted.estado = value; break; }
+  }
 
   return extracted;
 }
 
-// ────────────────────────────────────────────────────────────────────────────
 // CHECKS DE PERMISOS
 // ────────────────────────────────────────────────────────────────────────────
 function hasModRole(member) {
@@ -999,6 +1044,7 @@ module.exports = {
     const extracted = extractFromMessage(cleanText, message.mentions);
 
     // Mapear datos extraídos a la estructura del flujo
+    // extractFromMessage ya resuelve proyectoId dinámicamente desde la lista de proyectos
     const data = {};
     if (extracted.targetUser)   data.targetUser   = extracted.targetUser;
     if (extracted.targetMember) data.targetMember = extracted.targetMember;
@@ -1006,21 +1052,13 @@ module.exports = {
     if (extracted.rolKey)       data.rolKey       = extracted.rolKey;
     if (extracted.capitulo)     data.capitulo     = extracted.capitulo;
     if (extracted.nombre)       data.nombre       = extracted.nombre;
+    if (extracted.proyectoId)   data.proyectoId   = extracted.proyectoId;
+    if (extracted.estado)       data.estado       = extracted.estado;
 
-    // Para status y buscar, extraer proyecto/query del texto
-    if (intent === 'status' || intent === 'proyecto.info' || intent === 'proyecto.toggle' || intent === 'proyecto.setstatus') {
-      const projects = Projects.list();
-      const found = projects.find(p => cleanText.includes(p.id) || cleanText.toLowerCase().includes(p.name.toLowerCase()));
-      if (found) data.proyectoId = found.id;
-    }
-    if (intent === 'buscar') {
-      const queryMatch = cleanText.match(/buscar?\s+(.+)/i);
+    // Query para búsqueda — todo lo que venga después de "busca(r)"
+    if (intent === 'buscar' && !data.query) {
+      const queryMatch = cleanText.match(/busca(?:r|me)?\s+(.+)/i);
       if (queryMatch) data.query = queryMatch[1].trim();
-    }
-    if (intent === 'anunciar') {
-      const projects = Projects.list();
-      const found = projects.find(p => cleanText.includes(p.id) || cleanText.toLowerCase().includes(p.name.toLowerCase()));
-      if (found) data.proyectoId = found.id;
     }
 
     // ── Iniciar flujo ─────────────────────────────────────────────────────
