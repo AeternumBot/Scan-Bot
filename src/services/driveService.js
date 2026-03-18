@@ -140,7 +140,8 @@ async function analyzeChapters(projectFolderId) {
         const stageItems = await listFolder(stageFolder.id);
         const fileCount  = stageItems.filter(f => !isFolder(f)).length;
         const credit     = cfg.trackCredits ? extractCredit(stageFolder.name, cfg.prefixes) : null;
-        const done       = fileCount > 0 || credit !== null;
+        // done solo si tiene archivos reales — carpeta vacía no cuenta como completada
+        const done       = fileCount > 0;
         return [key, { exists: true, done, credit, fileCount, folderName: stageFolder.name, nameChanged: credit !== null }];
       }));
 
@@ -155,11 +156,13 @@ async function analyzeChapters(projectFolderId) {
 
 // ── API pública ───────────────────────────────────────────────────────────────
 
-async function getProjectStatus(projectName, category = null) {
+async function getProjectStatus(projectName, category = null, forceRefresh = false) {
   const cacheKey = `${category || 'any'}__${projectName}`;
-  const cached = DriveCache.get(cacheKey);
-  if (cached && Date.now() - new Date(cached.cachedAt).getTime() < CACHE_TTL_MS) {
-    return cached;
+  if (!forceRefresh) {
+    const cached = DriveCache.get(cacheKey);
+    if (cached && Date.now() - new Date(cached.cachedAt).getTime() < CACHE_TTL_MS) {
+      return cached;
+    }
   }
 
   try {

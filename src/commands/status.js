@@ -14,6 +14,10 @@ const data = new SlashCommandBuilder()
     o.setName('proyecto')
       .setDescription('Nombre o ID del proyecto (vacío = todos)')
       .setAutocomplete(true)
+  )
+  .addBooleanOption(o =>
+    o.setName('forzar')
+      .setDescription('Ignorar caché y consultar Drive ahora mismo')
   );
 
 async function autocomplete(interaction) {
@@ -31,16 +35,18 @@ async function execute(interaction) {
   await interaction.deferReply({ ephemeral: false });
   const projectId = interaction.options.getString('proyecto');
 
+  const forceRefresh = interaction.options.getBoolean('forzar') ?? false;
+
   if (projectId) {
     const project = Projects.get(projectId);
     if (!project) return interaction.editReply({ content: SUA.proyecto.noEncontrado(projectId) });
-    return sendSingleStatus(interaction, project);
+    return sendSingleStatus(interaction, project, forceRefresh);
   }
-  return sendAllStatus(interaction);
+  return sendAllStatus(interaction, forceRefresh);
 }
 
-async function sendSingleStatus(interaction, project) {
-  const ds = await driveService.getProjectStatus(project.driveFolder, project.category);
+async function sendSingleStatus(interaction, project, forceRefresh = false) {
+  const ds = await driveService.getProjectStatus(project.driveFolder, project.category, forceRefresh);
   const catInfo = CATEGORIES[project.category] || { emoji: '📖', name: '' };
 
   // Leer del caché — el monitor actualiza cada 25 min
@@ -122,7 +128,7 @@ async function sendSingleStatus(interaction, project) {
   await interaction.editReply({ embeds: [embed] });
 }
 
-async function sendAllStatus(interaction) {
+async function sendAllStatus(interaction, forceRefresh = false) {
   const projects = Projects.list().filter(p => p.active);
   if (!projects.length) return interaction.editReply(SUA.status.sinActivos);
 
@@ -130,7 +136,7 @@ async function sendAllStatus(interaction) {
 
   const lines = [];
   for (const project of projects) {
-    const ds = await driveService.getProjectStatus(project.driveFolder, project.category);
+    const ds = await driveService.getProjectStatus(project.driveFolder, project.category, forceRefresh);
     const lastTmo   = LastChapters.get(project.id, 'tmo');
     const lastColor = LastChapters.get(project.id, 'colorcito');
     const catInfo   = CATEGORIES[project.category] || { emoji: '📖' };
