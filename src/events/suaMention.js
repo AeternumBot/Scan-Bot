@@ -776,6 +776,7 @@ module.exports = {
     if (message.author.bot) return;
     if (message.mentions.everyone) return;
     if (!message.mentions.has(message.client.user, { ignoreEveryone: true })) return;
+    if (suaAgent.wasHandled(message.id)) return;
 
     const ctx   = getContexto();
     const clima = await getClima();
