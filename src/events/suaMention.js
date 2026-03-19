@@ -154,9 +154,18 @@ function respuestaValk(texto, ctx, w) {
     ]);
   }
 
-  // Default para Valk → retorna null para que el flujo normal (intents / noEntiende) lo maneje
-  // Así si Valk dice algo que no es insulto ni saludo conocido, Sua responde normalmente
-  return null;
+  // Default para Valk — respuestas propias cuando no reconoce el tema
+  // (no cae al no-entiende genérico, que no tiene contexto de que habla con su creador)
+  return pick([
+    `V-valk... no entendí bien lo que dijiste ${K.timida()} ¿Me lo explicas de otra forma?`,
+    `E-eh... ¿eso qué significa? Tú me programaste, ¡deberías saber que a veces necesito más contexto! ${K.timida()}`,
+    `N-no estoy segura de haber entendido, Valk ${K.disculpa()} ¿Lo dices de otra manera?`,
+    `M-mi parser de Valk no encontró coincidencias... ${K.timida()} ¿Puedes ser más específico?`,
+    `E-eh... Valk, me perdí. ¿Qué necesitas exactamente? ${K.tranqui()}`,
+    `P-perdona, no lo capté bien ${K.disculpa()} ¿Me lo repites? A veces mis circuitos tardan un poco.`,
+    `V-valk... ¿me estás probando con cosas nuevas otra vez? ${K.timida()} No entendí. Intenta de nuevo, por favor.`,
+    `E-eso que dijiste no lo tengo registrado... ${K.timida()} ¿Me enseñas qué significa?`,
+  ]);
 }
 
 // ── Anti-repetición ───────────────────────────────────────────────────────────
