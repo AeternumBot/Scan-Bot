@@ -2367,8 +2367,8 @@ async function execReclutarPostular(data, message) {
     ? '\n> 📌 Sin experiencia previa — recordar que enseñamos desde cero.\n> ⚠️ Recordar que el trabajo no es remunerado.'
     : '\n> ⚠️ Recordar que el trabajo no es remunerado.';
 
-  // ── Enviar resumen al canal de tareas/alertas del staff CON botón de confirmación ──
-  const tasksChannelId = process.env.TASKS_CHANNEL_ID;
+  // ── Enviar resumen al canal de avisos de reclutamiento del staff CON botón ──
+  const tasksChannelId = process.env.RECRUIT_ALERTS_CHANNEL_ID || process.env.TASKS_CHANNEL_ID;
   const staffGuildId   = process.env.DISCORD_GUILD_ID;
   if (tasksChannelId && staffGuildId) {
     try {
