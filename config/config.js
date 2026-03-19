@@ -3,7 +3,6 @@
 module.exports = {
 
   // ─── REACCIONES ────────────────────────────────────────────────────────────
-  // Orden exacto de reacciones para los anuncios
   REACTIONS: {
     newChapter: [
       '🇼', '🇦', '🇮', '🇫', '🇺', '🇸',
@@ -52,7 +51,7 @@ module.exports = {
     unknown: '❓',
   },
 
-  // ─── COLORES (para /status y otros embeds internos) ───────────────────────
+  // ─── COLORES ───────────────────────────────────────────────────────────────
   COLORS: {
     announcement: 0xFF6B9D,
     status:       0x5865F2,
@@ -64,17 +63,23 @@ module.exports = {
 
   // ─── FUENTES ───────────────────────────────────────────────────────────────
   SOURCES: {
-    tmo:       { name: 'TMO',       emoji: '🔗', label: 'TMO',       url: 'https://zonatmo.com'        },
-    colorcito: { name: 'COLORCITO', emoji: '🔗', label: 'COLORCITO', url: 'https://colorcitoscan.com'  },
+    tmo:       { name: 'TMO',       emoji: '🔗', label: 'TMO',       url: 'https://zonatmo.com'       },
+    colorcito: { name: 'COLORCITO', emoji: '🔗', label: 'COLORCITO', url: 'https://colorcitoscan.com' },
   },
 
   // ─── MISC ──────────────────────────────────────────────────────────────────
   RETRY_DELAY_MS: 5000,
-  MAX_RETRIES: 3,
+  MAX_RETRIES:    3,
 
+  // ─── ARCHIVOS DE DATOS ─────────────────────────────────────────────────────
   DATA_FILES: {
-    projects:     './data/projects.json',
-    lastChapters: './data/last_chapters.json',
-    driveCache:   './data/drive_cache.json',
+    projects:      './data/projects.json',
+    lastChapters:  './data/last_chapters.json',
+    driveCache:    './data/drive_cache.json',
+    // V3
+    tareas:        './data/tareas.json',
+    ausencias:     './data/ausencias.json',
+    tickets:       './data/tickets.json',
+    reclutamiento: './data/reclutamiento.json',
   },
 };

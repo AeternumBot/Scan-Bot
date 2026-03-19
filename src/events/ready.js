@@ -1,6 +1,8 @@
 // src/events/ready.js
 const { Events } = require('discord.js');
 const monitor    = require('../services/monitor');
+const scheduler  = require('../services/scheduler');
+const webhook    = require('../services/webhookServer');
 const logger     = require('../utils/logger');
 
 module.exports = {
@@ -11,7 +13,7 @@ module.exports = {
     logger.success('Bot', `Conectado como ${client.user.tag}`);
     logger.info('Bot', `Sirviendo en ${client.guilds.cache.size} servidor(es)`);
 
-    // Actividad del bot — rota cada 3 minutos
+    // ── Actividad del bot — rota cada 3 minutos ───────────────────────────────
     const estados = [
       { name: 'los capítulos nuevos (◕‿◕✿)',      type: 3 },
       { name: 'manga en secreto... (/ω＼)',         type: 3 },
@@ -31,8 +33,14 @@ module.exports = {
     setEstado();
     setInterval(setEstado, 3 * 60 * 1000);
 
-    // Iniciar el monitor de capítulos
+    // ── Servicios ─────────────────────────────────────────────────────────────
     monitor.start(client);
+    scheduler.start(client);
+
+    // Webhook server solo si está configurado el puerto
+    if (process.env.WEBHOOK_PORT) {
+      webhook.start(client);
+    }
 
     await logger.discord(client, 'success', 'Bot', `Bot iniciado correctamente: \`${client.user.tag}\``);
   },

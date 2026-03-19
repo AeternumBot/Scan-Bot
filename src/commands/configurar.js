@@ -71,6 +71,70 @@ const data = new SlashCommandBuilder()
       )
   )
   .addSubcommand(sub =>
+    sub.setName('tareas')
+      .setDescription('Configura el canal de tareas y alertas de estancamiento')
+      .addChannelOption(o =>
+        o.setName('canal')
+          .setDescription('Canal donde Sua publicará recordatorios de tareas y alertas')
+          .addChannelTypes(ChannelType.GuildText)
+          .setRequired(true)
+      )
+  )
+  .addSubcommand(sub =>
+    sub.setName('registros')
+      .setDescription('Configura el canal de registros generales de Sua')
+      .addChannelOption(o =>
+        o.setName('canal')
+          .setDescription('Canal para deploys, tickets, postulaciones y ausencias vencidas')
+          .addChannelTypes(ChannelType.GuildText)
+          .setRequired(true)
+      )
+  )
+  .addSubcommand(sub =>
+    sub.setName('ausencias')
+      .setDescription('Configura el canal de registro de ausencias activas')
+      .addChannelOption(o =>
+        o.setName('canal')
+          .setDescription('Canal donde Sua muestra las ausencias activas del staff')
+          .addChannelTypes(ChannelType.GuildText)
+          .setRequired(true)
+      )
+  )
+  .addSubcommand(sub =>
+    sub.setName('tickets')
+      .setDescription('Configura el canal de tickets de error (servidor de lectores)')
+      .addChannelOption(o =>
+        o.setName('canal')
+          .setDescription('Canal donde los lectores pueden abrir tickets de error')
+          .addChannelTypes(ChannelType.GuildText)
+          .setRequired(true)
+      )
+  )
+  .addSubcommand(sub =>
+    sub.setName('reclutamiento')
+      .setDescription('Configura el canal de reclutamiento')
+      .addChannelOption(o =>
+        o.setName('canal')
+          .setDescription('Canal donde los candidatos se postulan')
+          .addChannelTypes(ChannelType.GuildText)
+          .setRequired(true)
+      )
+  )
+  .addSubcommand(sub =>
+    sub.setName('estancado')
+      .setDescription('Configura días de alerta de capítulos estancados para un proyecto')
+      .addStringOption(o =>
+        o.setName('proyecto').setDescription('ID del proyecto').setRequired(true).setAutocomplete(true)
+      )
+      .addIntegerOption(o =>
+        o.setName('dias')
+          .setDescription('Días sin actividad antes de alertar (0 = desactivar)')
+          .setRequired(true)
+          .setMinValue(0)
+          .setMaxValue(60)
+      )
+  )
+  .addSubcommand(sub =>
     sub.setName('info')
       .setDescription('Muestra la configuración actual del bot')
   );
@@ -99,12 +163,18 @@ async function execute(interaction) {
 
   const sub = interaction.options.getSubcommand();
 
-  if (sub === 'canal')      return handleCanal(interaction);
-  if (sub === 'reacciones') return handleReacciones(interaction);
-  if (sub === 'rol')        return handleRol(interaction);
-  if (sub === 'verificar')  return handleVerificar(interaction);
-  if (sub === 'avisos')     return handleAvisos(interaction);
-  if (sub === 'info')       return handleInfo(interaction);
+  if (sub === 'canal')        return handleCanal(interaction);
+  if (sub === 'reacciones')   return handleReacciones(interaction);
+  if (sub === 'rol')          return handleRol(interaction);
+  if (sub === 'verificar')    return handleVerificar(interaction);
+  if (sub === 'avisos')       return handleAvisos(interaction);
+  if (sub === 'tareas')       return handleCanalEnv(interaction, 'TASKS_CHANNEL_ID', 'tareas y alertas');
+  if (sub === 'registros')    return handleCanalEnv(interaction, 'RECORDS_CHANNEL_ID', 'registros generales');
+  if (sub === 'ausencias')    return handleCanalEnv(interaction, 'ABSENCES_CHANNEL_ID', 'ausencias');
+  if (sub === 'tickets')      return handleCanalEnv(interaction, 'RECRUIT_CHANNEL_READER_ID', 'tickets de error');
+  if (sub === 'reclutamiento')return handleCanalEnv(interaction, 'RECRUIT_CHANNEL_READER_ID', 'reclutamiento');
+  if (sub === 'estancado')    return handleEstancado(interaction);
+  if (sub === 'info')         return handleInfo(interaction);
 }
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
@@ -234,25 +304,29 @@ async function handleInfo(interaction) {
     ? `<#${process.env.ANNOUNCEMENT_CHANNEL_ID}>`
     : 'No configurado';
 
-  const noticeStaff  = process.env.STAFF_NOTICE_ID
-    ? `<#${process.env.STAFF_NOTICE_ID}>`
-    : 'No configurado';
-  const noticeReader = process.env.NOTICE_CHANNEL_ID
-    ? `<#${process.env.NOTICE_CHANNEL_ID}>`
-    : 'No configurado';
+  const noticeStaff  = process.env.STAFF_NOTICE_ID      ? `<#${process.env.STAFF_NOTICE_ID}>`      : 'No configurado';
+  const noticeReader = process.env.NOTICE_CHANNEL_ID   ? `<#${process.env.NOTICE_CHANNEL_ID}>`   : 'No configurado';
+  const canalTareas  = process.env.TASKS_CHANNEL_ID    ? `<#${process.env.TASKS_CHANNEL_ID}>`    : 'No configurado';
+  const canalRegistros = process.env.RECORDS_CHANNEL_ID? `<#${process.env.RECORDS_CHANNEL_ID}>` : 'No configurado';
+  const canalAusencias = process.env.ABSENCES_CHANNEL_ID?`<#${process.env.ABSENCES_CHANNEL_ID}>`:'No configurado';
+  const canalReclu   = process.env.RECRUIT_CHANNEL_READER_ID ? `<#${process.env.RECRUIT_CHANNEL_READER_ID}>` : 'No configurado';
 
   const embed = new EmbedBuilder()
     .setColor(COLORS.info)
     .setTitle('⚙️ Configuración del bot')
     .addFields(
-      { name: '📢 Canal de anuncios',       value: channel,                                              inline: true },
-      { name: '📋 Proyectos totales',        value: String(projects.length),                             inline: true },
-      { name: '✅ Proyectos activos',        value: String(active),                                      inline: true },
-      { name: '📣 Avisos (staff)',           value: noticeStaff,                                         inline: true },
-      { name: '📣 Avisos (lectores)',        value: noticeReader,                                        inline: true },
+      { name: '📢 Canal de anuncios',       value: channel,          inline: true },
+      { name: '📋 Proyectos totales',        value: String(projects.length), inline: true },
+      { name: '✅ Proyectos activos',        value: String(active),   inline: true },
+      { name: '📣 Avisos (staff)',           value: noticeStaff,      inline: true },
+      { name: '📣 Avisos (lectores)',        value: noticeReader,     inline: true },
+      { name: '📋 Tareas y alertas',         value: canalTareas,      inline: true },
+      { name: '📁 Registros',               value: canalRegistros,   inline: true },
+      { name: '🏖️ Ausencias',              value: canalAusencias,   inline: true },
+      { name: '🎫 Reclutamiento',           value: canalReclu,       inline: true },
       { name: '⏱️ Intervalo de check',       value: `Cada ${process.env.CHECK_INTERVAL_MINUTES || 25} minutos`, inline: true },
-      { name: '🕐 Zona horaria',             value: process.env.TIMEZONE || 'America/Bogota',            inline: true },
-      { name: '📦 Node.js',                  value: process.version,                                     inline: true },
+      { name: '🕐 Zona horaria',             value: process.env.TIMEZONE || 'America/Bogota', inline: true },
+      { name: '📦 Node.js',                  value: process.version,  inline: true },
     )
     .addFields({
       name: '🔧 Comandos disponibles',
@@ -266,6 +340,40 @@ async function handleInfo(interaction) {
     .setTimestamp();
 
   await interaction.reply({ embeds: [embed], ephemeral: true });
+}
+
+// ── Handler genérico para canales de entorno ─────────────────────────────────
+async function handleCanalEnv(interaction, envKey, label) {
+  const canal = interaction.options.getChannel('canal');
+  process.env[envKey] = canal.id;
+  await interaction.reply({
+    content: `✅ Canal de **${label}** actualizado a ${canal}.
+
+⚠️ Para que persista al reiniciar el bot, actualiza \`${envKey}\` en tu archivo \`.env\`.`,
+    ephemeral: true,
+  });
+}
+
+// ── Handler estancado ─────────────────────────────────────────────────────────
+async function handleEstancado(interaction) {
+  const projectId = interaction.options.getString('proyecto');
+  const dias      = interaction.options.getInteger('dias');
+  const { Projects } = require('../utils/storage');
+
+  const project = Projects.get(projectId);
+  if (!project) {
+    return interaction.reply({ content: `❌ Proyecto \`${projectId}\` no encontrado.`, ephemeral: true });
+  }
+
+  project.staleAlertDays = dias > 0 ? dias : null;
+  Projects.save(project);
+
+  await interaction.reply({
+    content: dias > 0
+      ? `✅ Alerta de estancado para **${project.name}** configurada a **${dias} días**.`
+      : `✅ Alerta de estancado para **${project.name}** desactivada.`,
+    ephemeral: true,
+  });
 }
 
 module.exports = { data, execute, autocomplete };
