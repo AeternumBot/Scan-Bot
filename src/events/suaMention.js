@@ -1,6 +1,7 @@
 // src/events/suaMention.js
 const { Events } = require('discord.js');
-const axios = require('axios');
+const axios      = require('axios');
+const suaAgent   = require('./suaAgent');
 
 // ── Contexto temporal ─────────────────────────────────────────────────────────
 function getContexto() {

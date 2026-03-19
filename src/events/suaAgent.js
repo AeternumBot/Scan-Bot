@@ -1191,8 +1191,6 @@ function wasHandled(messageId) {
   return _handledByAgent.has(messageId);
 }
 
-module.exports.wasHandled = wasHandled;
-
 // ────────────────────────────────────────────────────────────────────────────
 // RESPUESTAS ESPECIALES PARA VALK
 // ────────────────────────────────────────────────────────────────────────────
@@ -1245,6 +1243,7 @@ const VALK_SALUDO = () => noRepeat('__valk_hello', [
 // HANDLER PRINCIPAL DEL EVENTO messageCreate
 // ────────────────────────────────────────────────────────────────────────────
 module.exports = {
+  wasHandled,
   name: Events.MessageCreate,
   async execute(message) {
     if (message.author.bot) return;
