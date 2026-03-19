@@ -2096,6 +2096,16 @@ async function flowAusenciaLista(step, data, message) {
 const TIPOS_ERROR_V3 = { mal_subido: 'Mal subido', desorden: 'Desorden de páginas', no_carga: 'No carga / 404', otro: 'Otro' };
 
 async function flowTicketAbrir(step, data, message) {
+  // Check de canal en TODOS los pasos — solo funciona desde el canal de tickets configurado
+  const canalTicketId = process.env.TICKET_CHANNEL_READER_ID;
+  if (canalTicketId && message.channelId !== canalTicketId) {
+    clearSession(message.author.id);
+    return { reply: pick([
+      `E-eh... los reportes de error solo los proceso en <#${canalTicketId}> ${K.timida()} ¡Escríbeme allí!`,
+      `N-no puedo abrir un ticket desde aquí ${K.tranqui()} Ve a <#${canalTicketId}> e inténtalo de nuevo.`,
+    ]), done: true };
+  }
+
   if (step === 'start') {
     if (!data.proyectoId) return { reply: pick([`¿En qué proyecto encontraste el error? ${K.timida()}`, `¿Qué proyecto tiene el problema? ${K.tranqui()}`]), nextStep: 'awaitProyecto' };
     if (!data.capitulo)   return { reply: `¿En qué capítulo está el error? ${K.timida()}`, nextStep: 'awaitCapitulo' };
