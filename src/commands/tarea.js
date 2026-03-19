@@ -125,16 +125,16 @@ async function handleAsignar(interaction) {
     const canal = await interaction.client.channels.fetch(canalId).catch(() => null);
     if (canal) {
       const mensajes = [
-        `📋 ¡Nueva tarea asignada! ${K.feliz()}\n<@${usuario.id}>, te toca la **${labor}** del cap. **${capitulo}** de **${project.name}**.\nID de tarea: \`${tarea.id}\` — Te estaré recordando cada 2 días hasta que la marques como lista ${K.tranqui()}`,
-        `📋 Tarea nueva para <@${usuario.id}> ${K.feliz()}\n**Labor:** ${labor}\n**Proyecto:** ${project.name}\n**Capítulo:** ${capitulo}\nID: \`${tarea.id}\` — Recuerda marcarla como completada cuando termines.`,
+        `📋 ¡Nueva tarea asignada! ${K.feliz()}\n<@${usuario.id}>, te toca la **${labor}** del cap. **${capitulo}** de **${project.name}**.\nTe estaré recordando cada 2 días hasta que la marques como lista ${K.tranqui()}`,
+        `📋 Tarea nueva para <@${usuario.id}> ${K.feliz()}\n**Labor:** ${labor}\n**Proyecto:** ${project.name}\n**Capítulo:** ${capitulo}\nRecuerda marcarla como completada cuando termines.`,
       ];
       await canal.send(pick(mensajes));
     }
   }
 
   await interaction.editReply(pick([
-    `¡Listo! Le asigné la **${labor}** del cap. **${capitulo}** a **${usuario.username}** ${K.feliz()} ID de tarea: \`${tarea.id}\``,
-    `Tarea creada y notificada ${K.feliz()} \`${tarea.id}\` — **${labor}** cap. **${capitulo}** → **${usuario.username}**`,
+    `¡Listo! Le asigné la **${labor}** del cap. **${capitulo}** a **${usuario.username}** ${K.feliz()} Le llegará un recordatorio cada 2 días hasta que la complete.`,
+    `Tarea asignada a **${usuario.username}** ${K.feliz()} **${labor}** — cap. **${capitulo}** de **${project.name}**. Ya le notifiqué.`,
   ]));
 }
 
@@ -176,19 +176,31 @@ async function handleCompletar(interaction) {
   if (canalId) {
     const canal = await interaction.client.channels.fetch(canalId).catch(() => null);
     if (canal) {
-      const mensajes = [
-        `✅ ¡Tarea completada! <@${tarea.asignadoId}> terminó la **${tarea.labor}** del cap. **${tarea.capitulo}** de **${tarea.proyectoName}** ${K.feliz()} ¡Bien hecho!`,
-        `✅ <@${tarea.asignadoId}> marcó como lista la **${tarea.labor}** del cap. **${tarea.capitulo}** de **${tarea.proyectoName}** ${K.feliz()}`,
-        `✅ ¡La **${tarea.labor}** del cap. **${tarea.capitulo}** de **${tarea.proyectoName}** ya está lista! Gracias <@${tarea.asignadoId}> ${K.feliz()}`,
-      ];
-      await canal.send(pick(mensajes));
+      if (esAsignado && !isMod(interaction.member)) {
+        await canal.send(pick([
+          `✅ <@${tarea.asignadoId}> completó la **${tarea.labor}** del cap. **${tarea.capitulo}** de **${tarea.proyectoName}** ${K.feliz()}`,
+          `✅ **${tarea.labor}** cap. **${tarea.capitulo}** de **${tarea.proyectoName}** — <@${tarea.asignadoId}> la marcó como lista ${K.feliz()}`,
+        ]));
+      } else {
+        await canal.send(pick([
+          `✅ <@${interaction.user.id}> marcó como completada la **${tarea.labor}** de <@${tarea.asignadoId}> — cap. **${tarea.capitulo}** de **${tarea.proyectoName}**`,
+          `✅ La **${tarea.labor}** del cap. **${tarea.capitulo}** de **${tarea.proyectoName}** fue marcada como lista por un moderador`,
+        ]));
+      }
     }
   }
 
-  await interaction.editReply(pick([
-    `¡Perfecto! Marqué la tarea \`${tareaId}\` como completada ${K.feliz()} ¡Buen trabajo!`,
-    `Listo, tarea completada ${K.feliz()} Ya no recibirás más recordatorios por esa.`,
-  ]));
+  if (esAsignado && !isMod(interaction.member)) {
+    await interaction.editReply(pick([
+      `¡Anotado! ${K.feliz()} La **${tarea.labor}** del cap. **${tarea.capitulo}** queda registrada como terminada. ¡Gracias por avisarme!`,
+      `¡Listo! ${K.feliz()} Marqué la **${tarea.labor}** como completada. Ya no recibirás recordatorios por esa.`,
+    ]));
+  } else {
+    await interaction.editReply(pick([
+      `Listo, marqué la **${tarea.labor}** del cap. **${tarea.capitulo}** de **${tarea.proyectoName}** como completada ${K.tranqui()} **${tarea.asignadoName}** también fue notificado.`,
+      `Completada ${K.tranqui()} La tarea de **${tarea.asignadoName}** queda registrada como lista.`,
+    ]));
+  }
 }
 
 // ── /tarea lista ──────────────────────────────────────────────────────────────

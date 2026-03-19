@@ -1816,48 +1816,104 @@ async function execTareaAsignar(data, message) {
   }
 
   return { reply: pick([
-    `¡Listo! Le asigné la **${data.labor}** del cap. **${data.capitulo}** a **${data.targetUser.username}** ${K.feliz()} ID: \`${tarea.id}\``,
-    `Tarea creada y notificada ${K.feliz()} \`${tarea.id}\` — **${data.labor}** cap. **${data.capitulo}** → **${data.targetUser.username}**`,
+    `¡Listo! Le asigné la **${data.labor}** del cap. **${data.capitulo}** de **${Projects.get(data.proyectoId)?.name || data.proyectoId}** a **${data.targetUser.username}** ${K.feliz()} Le llegará el recordatorio cada 2 días hasta que la marque como lista.`,
+    `Tarea asignada a **${data.targetUser.username}** ${K.feliz()} **${data.labor}** — cap. **${data.capitulo}** de **${Projects.get(data.proyectoId)?.name || data.proyectoId}**. Ya le notifiqué en el canal de tareas.`,
   ]), done: true };
 }
 
 async function flowTareaCompletar(step, data, message) {
   if (step === 'start') {
-    const idMatch = message.content.match(/task_\d+/);
-    if (idMatch) { data.tareaId = idMatch[0]; return execTareaCompletar(data, message); }
+    // Aceptar tanto "tarea_123" como número limpio o task_xxx (por compatibilidad)
+    const idMatch = message.content.match(/(?:tarea_|task_)(\d+)/i) || message.content.match(/\btarea\s+(\d+)\b/i);
+    if (idMatch) {
+      // Buscar por número de tarea
+      const num = idMatch[1];
+      const todas = Tareas.listActivas();
+      const encontrada = todas.find(t => t.id.endsWith(num) || t.numero == num);
+      if (encontrada) { data.tareaId = encontrada.id; return execTareaCompletar(data, message); }
+    }
     const misTareas = Tareas.listPorUsuario(message.author.id);
     if (misTareas.length === 1) { data.tareaId = misTareas[0].id; return execTareaCompletar(data, message); }
     if (misTareas.length > 1) {
-      const lista = misTareas.slice(0, 5).map(t => `\`${t.id}\` — ${t.proyectoName} Cap.${t.capitulo} (${t.labor})`).join('\n');
-      return { reply: `Tienes varias tareas activas ${K.timida()} ¿Cuál es la que terminaste?\n${lista}`, nextStep: 'awaitId' };
+      const lista = misTareas.slice(0, 5).map((t, i) => `**${i+1}.** ${t.proyectoName} Cap.${t.capitulo} — ${t.labor}`).join('\n');
+      return { reply: `Tienes varias tareas activas ${K.timida()} ¿Cuál terminaste? Di el número:\n${lista}`, nextStep: 'awaitNumero' };
     }
-    return { reply: `¿Cuál es el ID de la tarea que completaste? (ej: \`task_1234567890\`) ${K.timida()}`, nextStep: 'awaitId' };
+    // Sin tareas propias — si es mod, pedirle que especifique
+    if (hasModRole(message.member)) {
+      return { reply: `¿De qué tarea se trata? Dime el proyecto y capítulo o el número de tarea ${K.tranqui()}`, nextStep: 'awaitBuscar' };
+    }
+    return { reply: `N-no tienes tareas activas asignadas en este momento ${K.timida()}`, done: true };
   }
-  if (step === 'awaitId') {
-    const idMatch = message.content.match(/task_\d+/);
-    if (!idMatch) return { reply: `No reconocí el ID... debe tener el formato \`task_XXXXXXXXXX\` ${K.disculpa()}` };
-    data.tareaId = idMatch[0];
+  if (step === 'awaitNumero') {
+    const n = parseInt(message.content.trim());
+    const misTareas = Tareas.listPorUsuario(message.author.id);
+    if (!n || n < 1 || n > misTareas.length) return { reply: `Mmm, ese número no está en la lista ${K.disculpa()} Intenta de nuevo.` };
+    data.tareaId = misTareas[n - 1].id;
+    return execTareaCompletar(data, message);
+  }
+  if (step === 'awaitBuscar') {
+    // Buscar tarea por texto libre (proyecto + capitulo)
+    const t = message.content.toLowerCase();
+    const activas = Tareas.listActivas();
+    const encontrada = activas.find(ta =>
+      t.includes(ta.proyectoName.toLowerCase()) ||
+      t.includes(`cap${ta.capitulo}`) ||
+      t.includes(`cap. ${ta.capitulo}`) ||
+      t.includes(`capitulo ${ta.capitulo}`)
+    );
+    if (!encontrada) return { reply: `No encontré esa tarea ${K.disculpa()} Intenta con el nombre del proyecto o capítulo.` };
+    data.tareaId = encontrada.id;
     return execTareaCompletar(data, message);
   }
 }
 
 async function execTareaCompletar(data, message) {
   const tarea = Tareas.get(data.tareaId);
-  if (!tarea)           return { reply: `No encontré la tarea \`${data.tareaId}\` ${K.timida()}`, done: true };
+  if (!tarea)           return { reply: `No encontré esa tarea ${K.timida()}`, done: true };
   if (tarea.completada) return { reply: `Esa tarea ya estaba completada ${K.feliz()}`, done: true };
+
   const esAsignado = tarea.asignadoId === message.author.id;
-  if (!esAsignado && !hasModRole(message.member)) {
-    return { reply: `Solo **${tarea.asignadoName}** o un mod pueden completar esa tarea ${K.timida()}`, done: true };
+  const esMod      = hasModRole(message.member);
+
+  if (!esAsignado && !esMod) {
+    return { reply: `Solo **${tarea.asignadoName}** o un moderador pueden marcar esa tarea como lista ${K.timida()}`, done: true };
   }
+
   Tareas.completar(data.tareaId);
+
+  // Notificación en canal de tareas
   const canalId = process.env.TASKS_CHANNEL_ID;
   if (canalId) {
     const canal = await message.client.channels.fetch(canalId).catch(() => null);
-    if (canal) await canal.send(`✅ <@${tarea.asignadoId}> terminó la **${tarea.labor}** del cap. **${tarea.capitulo}** de **${tarea.proyectoName}** ${K.feliz()} ¡Buen trabajo!`);
+    if (canal) {
+      if (esAsignado && !esMod) {
+        // El asignado mismo lo marcó
+        await canal.send(pick([
+          `✅ <@${tarea.asignadoId}> completó la **${tarea.labor}** del cap. **${tarea.capitulo}** de **${tarea.proyectoName}** ${K.feliz()}`,
+          `✅ **${tarea.labor}** cap. **${tarea.capitulo}** de **${tarea.proyectoName}** — <@${tarea.asignadoId}> la marcó como lista ${K.feliz()}`,
+        ]));
+      } else {
+        // Un mod la marcó (puede ser el mismo que asignó u otro mod)
+        const esQuienAsigno = tarea.creadoPor === message.author.id;
+        await canal.send(pick([
+          `✅ <@${message.author.id}> marcó como completada la **${tarea.labor}** de <@${tarea.asignadoId}> — cap. **${tarea.capitulo}** de **${tarea.proyectoName}**`,
+          `✅ La **${tarea.labor}** del cap. **${tarea.capitulo}** de **${tarea.proyectoName}** fue marcada como lista por ${esQuienAsigno ? 'quien la asignó' : 'un moderador'}`,
+        ]));
+      }
+    }
   }
+
+  // Respuesta diferenciada
+  if (esAsignado && !esMod) {
+    return { reply: pick([
+      `¡Anotado! ${K.feliz()} Marqué la **${tarea.labor}** del cap. **${tarea.capitulo}** como completada. Ya no recibirás recordatorios por esa.`,
+      `¡Listo! ${K.feliz()} La **${tarea.labor}** queda registrada como terminada. ¡Gracias por avisarme!`,
+    ]), done: true };
+  }
+  // Es mod
   return { reply: pick([
-    `¡Perfecto! Tarea \`${data.tareaId}\` marcada como completada ${K.feliz()} ¡Buen trabajo!`,
-    `Listo, ya no recibirás recordatorios por esa ${K.feliz()} ¡Bien hecho!`,
+    `Listo, marqué la **${tarea.labor}** del cap. **${tarea.capitulo}** de **${tarea.proyectoName}** como completada ${K.tranqui()} <@${tarea.asignadoId}> también fue notificado.`,
+    `Completada ${K.tranqui()} La tarea de **${tarea.asignadoName}** queda registrada como lista.`,
   ]), done: true };
 }
 
@@ -1877,11 +1933,40 @@ async function flowTareaLista(step, data, message) {
 // ────────────────────────────────────────────────────────────────────────────
 
 function parseDateV3(str) {
+  // Acepta DD/MM/AAAA, MM/DD/AAAA, DD-MM-AAAA, MM-DD-AAAA
   const m = str.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
   if (!m) return null;
-  const d = new Date(parseInt(m[3]), parseInt(m[2]) - 1, parseInt(m[1]));
-  if (isNaN(d.getTime()) || d <= new Date()) return null;
-  return d.toISOString();
+  const a = parseInt(m[1]);
+  const b = parseInt(m[2]);
+  const y = parseInt(m[3]);
+  const hoy = new Date();
+
+  // Intentar primero DD/MM (formato español/colombiano)
+  const ddmm = new Date(y, b - 1, a);
+  // Intentar MM/DD (formato americano — cuando el primer número > 12, solo puede ser DD)
+  const mmdd = new Date(y, a - 1, b);
+
+  // Si a > 12, el primer número definitivamente es el día (DD/MM)
+  if (a > 12) {
+    if (!isNaN(ddmm.getTime()) && ddmm > hoy) return ddmm.toISOString();
+    return null;
+  }
+  // Si b > 12, el segundo número definitivamente es el día (MM/DD)
+  if (b > 12) {
+    if (!isNaN(mmdd.getTime()) && mmdd > hoy) return mmdd.toISOString();
+    return null;
+  }
+  // Ambos podrían ser válidos — preferir MM/DD si el mes (a) ≤ 12 y la fecha resultante es futura
+  // y la fecha DD/MM también sería futura. En ese caso, usar el que da la fecha más próxima
+  const ddmmValida = !isNaN(ddmm.getTime()) && ddmm > hoy;
+  const mmddValida = !isNaN(mmdd.getTime()) && mmdd > hoy;
+  if (ddmmValida && mmddValida) {
+    // Retornar la más cercana al presente (la que el usuario probablemente quiso)
+    return (ddmm < mmdd ? ddmm : mmdd).toISOString();
+  }
+  if (ddmmValida) return ddmm.toISOString();
+  if (mmddValida) return mmdd.toISOString();
+  return null;
 }
 
 async function flowAusenciaPedir(step, data, message) {
@@ -2239,8 +2324,9 @@ async function flowReclutarPostular(step, data, message) {
 }
 
 async function execReclutarPostular(data, message) {
-  const staffGuildId = process.env.DISCORD_GUILD_ID;
-  if (!staffGuildId) return { reply: `El servidor de staff no está configurado ${K.triste()}`, done: true };
+  // El canal temporal se crea en el servidor de LECTORES (donde está el candidato)
+  const readerGuildId = process.env.DISCORD_READER_GUILD_ID || message.guildId;
+  if (!readerGuildId) return { reply: `No encontré el servidor de lectores configurado ${K.triste()}`, done: true };
 
   const total       = Reclutamiento.list().length + 1;
   const canalNombre = `postulacion-${String(total).padStart(3, '0')}-${message.author.username.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 15)}`;
@@ -2248,15 +2334,16 @@ async function execReclutarPostular(data, message) {
   let canal;
   try {
     const { ChannelType, PermissionFlagsBits } = require('discord.js');
-    const staffGuild = await message.client.guilds.fetch(staffGuildId);
-    canal = await staffGuild.channels.create({
+    const readerGuild = await message.client.guilds.fetch(readerGuildId);
+    canal = await readerGuild.channels.create({
       name:  canalNombre,
       type:  ChannelType.GuildText,
       topic: `Postulación de ${message.author.username} — ${ROLES_RECLU[data.rolInteres]}`,
       permissionOverwrites: [
-        { id: staffGuild.roles.everyone.id, deny:  [PermissionFlagsBits.ViewChannel] },
-        { id: MOD_ROLE_ID,                  allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
-        { id: staffGuild.members.me.id,     allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
+        { id: readerGuild.roles.everyone.id, deny:  [PermissionFlagsBits.ViewChannel] },
+        // El candidato puede ver y escribir en su propio canal
+        { id: message.author.id,            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
+        { id: message.client.user.id,       allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
       ],
     });
   } catch (err) {
@@ -2264,40 +2351,63 @@ async function execReclutarPostular(data, message) {
   }
 
   const solicitud = Reclutamiento.create({
-    usuarioId:      message.author.id,
-    usuarioName:    message.author.username,
-    rolInteres:     data.rolInteres,
-    experiencia:    data.experiencia,
-    disponibilidad: data.disponibilidad,
-    motivacion:     data.motivacion,
+    usuarioId:       message.author.id,
+    usuarioName:     message.author.username,
+    rolInteres:      data.rolInteres,
+    experiencia:     data.experiencia,
+    disponibilidad:  data.disponibilidad,
+    motivacion:      data.motivacion,
     proyectoInteres: data.motivacion,
-    channelId:      canal.id,
+    channelId:       canal.id,
   });
 
-  const dispL = { menos5: 'Menos de 5h/sem', '5a10': '5-10h/sem', mas10: '+10h/sem' };
-  const expL  = { si: 'Con experiencia', no: 'Sin experiencia (aprende)', poca: 'Poca experiencia' };
+  const dispL     = { menos5: 'Menos de 5h/sem', '5a10': '5-10h/sem', mas10: '+10h/sem' };
+  const expL      = { si: 'Con experiencia', no: 'Sin experiencia (aprende)', poca: 'Poca experiencia' };
   const notaExtra = data.experiencia === 'no'
     ? '\n> 📌 Sin experiencia previa — recordar que enseñamos desde cero.\n> ⚠️ Recordar que el trabajo no es remunerado.'
     : '\n> ⚠️ Recordar que el trabajo no es remunerado.';
 
-  await canal.send({
-    content: pick([
-      `<@&${MOD_ROLE_ID}> — Nueva postulación de **${message.author.username}** ${K.feliz()}${notaExtra}\n**Rol:** ${ROLES_RECLU[data.rolInteres]} | **Exp:** ${expL[data.experiencia]} | **Disp:** ${dispL[data.disponibilidad]}\n**Motivación:** ${data.motivacion}\nID: \`${solicitud.id}\``,
-      `<@&${MOD_ROLE_ID}> — ¡Alguien quiere unirse al equipo! **${message.author.username}** ${K.feliz()}${notaExtra}\n**Rol deseado:** ${ROLES_RECLU[data.rolInteres]} | **Disponibilidad:** ${dispL[data.disponibilidad]}\nID: \`${solicitud.id}\``,
-    ]),
-    allowedMentions: { roles: [MOD_ROLE_ID] },
-  });
+  // ── Enviar resumen al canal de tareas/alertas del staff CON botón de confirmación ──
+  const tasksChannelId = process.env.TASKS_CHANNEL_ID;
+  if (tasksChannelId) {
+    try {
+      const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+      const tasksCanal = await message.client.channels.fetch(tasksChannelId).catch(() => null);
+      if (tasksCanal) {
+        const resumen =
+          `📋 **Nueva postulación** — **${message.author.username}**${notaExtra}\n` +
+          `**Rol:** ${ROLES_RECLU[data.rolInteres]} | **Exp:** ${expL[data.experiencia]} | **Disp:** ${dispL[data.disponibilidad]}\n` +
+          `**Motivación:** ${data.motivacion}\n` +
+          `**Canal del candidato (lectores):** ${canal}`;
 
-  const canalReg = process.env.RECORDS_CHANNEL_ID;
-  if (canalReg) {
-    const reg = await message.client.channels.fetch(canalReg).catch(() => null);
-    if (reg) await reg.send(`📋 Nueva postulación \`${solicitud.id}\` — **${message.author.username}** (${ROLES_RECLU[data.rolInteres]}) | Canal: ${canal}`);
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`reclu_leido_${solicitud.id}`)
+            .setLabel('✅ Leído — me encargo')
+            .setStyle(ButtonStyle.Success),
+          new ButtonBuilder()
+            .setCustomId(`reclu_cancelar_${solicitud.id}`)
+            .setLabel('❌ Cancelar postulación')
+            .setStyle(ButtonStyle.Danger),
+        );
+
+        await tasksCanal.send({
+          content: resumen,
+          components: [row],
+        });
+      }
+    } catch { /* no crítico */ }
   }
 
+  // ── Mensaje inicial al candidato en su canal temporal ──
+  await canal.send(pick([
+    `¡Hola **${message.author.username}**! ${K.feliz()} Recibí tu postulación para **${ROLES_RECLU[data.rolInteres]}**. Ya le avisé al equipo y alguien se pondrá en contacto contigo aquí pronto. ¡Paciencia y mucha suerte!`,
+    `¡Tu postulación está en manos del equipo! ${K.feliz()} En cuanto alguien del staff la revise, te escribirán aquí mismo. ¡Ánimo!`,
+  ]));
+
   return { reply: pick([
-    `¡Tu postulación fue enviada! ${K.feliz()} El equipo ya fue notificado y alguien se comunicará contigo pronto. ¡Mucha suerte!`,
-    `¡Todo listo! ${K.feliz()} Tu solicitud para **${ROLES_RECLU[data.rolInteres]}** ya está en manos del equipo. ¡Paciencia y mucha suerte!`,
-    `¡Listo! ${K.feliz()} Mandé tu postulación al equipo. Pronto alguien se comunicará contigo. ¡Ánimo!`,
+    `¡Tu postulación fue enviada! ${K.feliz()} Te creé un canal privado donde el staff se comunicará contigo. ¡Mucha suerte!`,
+    `¡Todo listo! ${K.feliz()} Revisa el canal ${canal} — ahí el equipo te contactará pronto.`,
   ]), done: true };
 }
 
@@ -2597,3 +2707,116 @@ module.exports = {
     if (result.embeds) await message.reply({ embeds: result.embeds }).catch(() => {});
   },
 };
+
+// ── Handler para botones de reclutamiento ─────────────────────────────────────
+// Llamar desde interactionCreate.js: if (interaction.isButton()) suaAgent.handleButton(interaction)
+async function handleReclutamientoButton(interaction) {
+  const id = interaction.customId;
+  if (!id.startsWith('reclu_leido_') && !id.startsWith('reclu_cancelar_')) return false;
+
+  const solicitudId = id.replace('reclu_leido_', '').replace('reclu_cancelar_', '');
+  const solicitud   = Reclutamiento.get(solicitudId);
+
+  if (!solicitud || solicitud.estado !== 'pendiente') {
+    await interaction.reply({ content: `Esa postulación ya no está pendiente ${K.timida()}`, ephemeral: true });
+    return true;
+  }
+
+  if (id.startsWith('reclu_cancelar_')) {
+    // ── Botón cancelar — Sua pregunta si está seguro ─────────────────────
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`reclu_confirmar_cancelar_${solicitudId}`)
+        .setLabel('Sí, cancelar postulación')
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId(`reclu_no_cancelar_${solicitudId}`)
+        .setLabel('No, dejar pendiente')
+        .setStyle(ButtonStyle.Secondary),
+    );
+    await interaction.reply({
+      content: pick([
+        `¿Estás seguro de que quieres cancelar la postulación de **${solicitud.usuarioName}**? ${K.timida()} Esto le enviará un DM notificándole.`,
+        `E-eh... ¿cancelamos la postulación de **${solicitud.usuarioName}**? ${K.tranqui()} Confirma por favor.`,
+      ]),
+      components: [row],
+      ephemeral: true,
+    });
+    return true;
+  }
+
+  if (id.startsWith('reclu_confirmar_cancelar_')) {
+    // Cancelación confirmada
+    Reclutamiento.cerrar(solicitudId, interaction.user.id, 'cerrado');
+    try {
+      const u = await interaction.client.users.fetch(solicitud.usuarioId);
+      if (u) await u.send(`Hola **${solicitud.usuarioName}** ${K.tranqui()} Tu solicitud de postulación fue cancelada. Si tienes dudas, puedes volver a escribir en el canal de reclutamiento.`).catch(() => {});
+    } catch { /* ok */ }
+
+    // Cerrar canal temporal
+    const readerGuildId = process.env.DISCORD_READER_GUILD_ID;
+    if (solicitud.channelId && readerGuildId) {
+      try {
+        const g = await interaction.client.guilds.fetch(readerGuildId);
+        const c = await g.channels.fetch(solicitud.channelId).catch(() => null);
+        if (c) {
+          await c.send(`🔒 La postulación fue cancelada por el staff. Este canal se cerrará en 15 segundos.`);
+          setTimeout(() => c.delete('Postulación cancelada').catch(() => {}), 15_000);
+        }
+      } catch { /* ok */ }
+    }
+
+    // Editar el mensaje original del canal de alertas para quitar los botones
+    try {
+      await interaction.message.edit({ content: interaction.message.content + `\n\n❌ **Cancelada** por <@${interaction.user.id}>`, components: [] });
+    } catch { /* ok */ }
+
+    await interaction.reply({ content: `Postulación de **${solicitud.usuarioName}** cancelada ${K.tranqui()} El usuario fue notificado.`, ephemeral: true });
+    return true;
+  }
+
+  if (id.startsWith('reclu_no_cancelar_')) {
+    await interaction.reply({ content: `De acuerdo, la postulación sigue pendiente ${K.tranqui()}`, ephemeral: true });
+    return true;
+  }
+
+  if (id.startsWith('reclu_leido_')) {
+    // ── Botón "Leído — me encargo" ────────────────────────────────────────
+    // Editar el mensaje para quitar el botón y marcar quién lo leyó
+    try {
+      await interaction.message.edit({
+        content: interaction.message.content + `\n\n✅ **Revisado** por <@${interaction.user.id}>`,
+        components: [],
+      });
+    } catch { /* ok */ }
+
+    // Ir al canal del candidato y avisar que alguien ya lo leyó
+    const readerGuildId = process.env.DISCORD_READER_GUILD_ID;
+    if (solicitud.channelId && readerGuildId) {
+      try {
+        const g = await interaction.client.guilds.fetch(readerGuildId);
+        const c = await g.channels.fetch(solicitud.channelId).catch(() => null);
+        if (c) {
+          await c.send(pick([
+            `¡Hola **${solicitud.usuarioName}**! ${K.feliz()} Alguien del equipo ya revisó tu postulación y se pondrá en contacto contigo muy pronto. ¡Ten paciencia!`,
+            `¡Buenas noticias **${solicitud.usuarioName}**! ${K.tranqui()} Un miembro del staff ya vio tu solicitud y estará contigo en breve.`,
+          ]));
+        }
+      } catch { /* ok */ }
+    }
+
+    await interaction.reply({
+      content: pick([
+        `Avisé al candidato que alguien ya lo revisó ${K.feliz()} El canal de postulación está en el servidor de lectores.`,
+        `Listo ${K.tranqui()} Le informé a **${solicitud.usuarioName}** que alguien del staff lo atenderá pronto.`,
+      ]),
+      ephemeral: true,
+    });
+    return true;
+  }
+
+  return false;
+}
+
+module.exports.handleReclutamientoButton = handleReclutamientoButton;

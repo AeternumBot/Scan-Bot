@@ -6,6 +6,28 @@ module.exports = {
   name: Events.InteractionCreate,
 
   async execute(interaction) {
+    // ── Botones ────────────────────────────────────────────────────────────
+    if (interaction.isButton()) {
+      // Botones de reclutamiento
+      if (
+        interaction.customId.startsWith('reclu_leido_') ||
+        interaction.customId.startsWith('reclu_cancelar_') ||
+        interaction.customId.startsWith('reclu_confirmar_cancelar_') ||
+        interaction.customId.startsWith('reclu_no_cancelar_')
+      ) {
+        const suaAgent = require('./suaAgent');
+        try {
+          await suaAgent.handleReclutamientoButton(interaction);
+        } catch (err) {
+          logger.error('Button', `Error en botón de reclutamiento: ${err.message}`);
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({ content: 'A-ay... algo salió mal con ese botón (;ω;)', ephemeral: true }).catch(() => {});
+          }
+        }
+        return;
+      }
+    }
+
     // ── Slash commands ─────────────────────────────────────────────────────
     if (interaction.isChatInputCommand()) {
       const command = interaction.client.commands.get(interaction.commandName);
