@@ -2369,10 +2369,16 @@ async function execReclutarPostular(data, message) {
 
   // ── Enviar resumen al canal de tareas/alertas del staff CON botón de confirmación ──
   const tasksChannelId = process.env.TASKS_CHANNEL_ID;
-  if (tasksChannelId) {
+  const staffGuildId   = process.env.DISCORD_GUILD_ID;
+  if (tasksChannelId && staffGuildId) {
     try {
       const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-      const tasksCanal = await message.client.channels.fetch(tasksChannelId).catch(() => null);
+      // Buscar el canal a través del guild de staff explícitamente
+      // (no usar client.channels.fetch porque puede no tener el canal cacheado
+      //  cuando el comando se ejecuta desde el servidor de lectores)
+      const staffGuild = await message.client.guilds.fetch(staffGuildId);
+      const tasksCanal = await staffGuild.channels.fetch(tasksChannelId);
+
       if (tasksCanal) {
         const resumen =
           `📋 **Nueva postulación** — **${message.author.username}**${notaExtra}\n` +
@@ -2396,7 +2402,10 @@ async function execReclutarPostular(data, message) {
           components: [row],
         });
       }
-    } catch { /* no crítico */ }
+    } catch (err) {
+      // Loguear el error para poder diagnosticar si vuelve a fallar
+      console.error('[Reclutamiento] Error enviando resumen al canal de tareas:', err.message);
+    }
   }
 
   // ── Mensaje inicial al candidato en su canal temporal ──
@@ -2758,13 +2767,15 @@ async function handleReclutamientoButton(interaction) {
     const readerGuildId = process.env.DISCORD_READER_GUILD_ID;
     if (solicitud.channelId && readerGuildId) {
       try {
-        const g = await interaction.client.guilds.fetch(readerGuildId);
-        const c = await g.channels.fetch(solicitud.channelId).catch(() => null);
+        const readerGuild = await interaction.client.guilds.fetch(readerGuildId);
+        const c = await readerGuild.channels.fetch(solicitud.channelId);
         if (c) {
           await c.send(`🔒 La postulación fue cancelada por el staff. Este canal se cerrará en 15 segundos.`);
           setTimeout(() => c.delete('Postulación cancelada').catch(() => {}), 15_000);
         }
-      } catch { /* ok */ }
+      } catch (err) {
+        console.error('[Reclutamiento] Error cerrando canal del candidato:', err.message);
+      }
     }
 
     // Editar el mensaje original del canal de alertas para quitar los botones
@@ -2795,15 +2806,18 @@ async function handleReclutamientoButton(interaction) {
     const readerGuildId = process.env.DISCORD_READER_GUILD_ID;
     if (solicitud.channelId && readerGuildId) {
       try {
-        const g = await interaction.client.guilds.fetch(readerGuildId);
-        const c = await g.channels.fetch(solicitud.channelId).catch(() => null);
+        // Buscar siempre vía guild para cruzar servidores de forma fiable
+        const readerGuild = await interaction.client.guilds.fetch(readerGuildId);
+        const c = await readerGuild.channels.fetch(solicitud.channelId);
         if (c) {
           await c.send(pick([
             `¡Hola **${solicitud.usuarioName}**! ${K.feliz()} Alguien del equipo ya revisó tu postulación y se pondrá en contacto contigo muy pronto. ¡Ten paciencia!`,
             `¡Buenas noticias **${solicitud.usuarioName}**! ${K.tranqui()} Un miembro del staff ya vio tu solicitud y estará contigo en breve.`,
           ]));
         }
-      } catch { /* ok */ }
+      } catch (err) {
+        console.error('[Reclutamiento] Error enviando mensaje al canal del candidato:', err.message);
+      }
     }
 
     await interaction.reply({
