@@ -190,6 +190,27 @@ function detectIntent(text) {
   // ── Configurar ───────────────────────────────────────────────────────────
   if (/configura(r)?\b|configuracion\b|ajustes?\b|settings?\b/.test(t)) return 'configurar';
 
+  // ── Tareas ────────────────────────────────────────────────────────────────
+  if (/asigna(r)?.{0,10}tarea|crea(r)?.{0,10}tarea|nueva tarea|dale.{0,10}tarea|pon.{0,10}a trabajar|encarga(r)?/.test(t)) return 'tarea.asignar';
+  if (/tarea.{0,20}(completa|termina|lista|hecha)|ya (acabe|termine|liste).{0,10}tarea|marcar.{0,10}(lista|completada|hecha)/.test(t)) return 'tarea.completar';
+  if (/ver.{0,8}tareas|lista(r)?.{0,8}tareas|que tareas (hay|tienes)|tareas (pendientes|activas)/.test(t)) return 'tarea.lista';
+
+  // ── Ausencias ─────────────────────────────────────────────────────────────
+  if (/voy a (estar|quedar) (ausente|fuera)|me voy a ausentar|\bausencia\b|no voy a poder.{0,15}(dias|semana)|estaré fuera|salgo de viaje|tengo que descansar/.test(t)) return 'ausencia.pedir';
+  if (/registra(r)?.{0,8}ausencia|anota(r)?.{0,8}ausencia|ausencia de\s+<@/.test(t)) return 'ausencia.registrar';
+  if (/cancela(r)?.{0,8}ausencia|ya volvi|estoy de vuelta|regrese|ya regrese/.test(t)) return 'ausencia.cancelar';
+  if (/ver.{0,8}ausencias|quien (esta|hay) (ausente|fuera)|ausencias activas|lista.{0,8}ausencias/.test(t)) return 'ausencia.lista';
+
+  // ── Tickets ───────────────────────────────────────────────────────────────
+  if (/reporta(r)?\b|hay un error|tiene un error|no (carga|abre)|esta mal (subido|el cap)|paginas (desordenadas|mal puestas|mal)|falla el cap|error en el cap/.test(t)) return 'ticket.abrir';
+  if (/cierra?.{0,8}ticket|resuelto.{0,8}ticket|solucione.{0,8}ticket/.test(t)) return 'ticket.cerrar';
+  if (/tickets (abiertos|pendientes|activos)|ver tickets|lista.{0,8}tickets/.test(t)) return 'ticket.lista';
+
+  // ── Reclutamiento ─────────────────────────────────────────────────────────
+  if (/quiero (unirme|ser parte|colaborar)|me quiero unir|postular(me)?|unirme al (equipo|scan|grupo|team)|quiero (ser|ayudar como) (traductor|cleaner|typesetter|qc|staff)/.test(t)) return 'reclutar.postular';
+  if (/cierra?.{0,8}postulacion|cerrar.{0,8}postulacion|resultado.{0,8}postulacion/.test(t)) return 'reclutar.cerrar';
+  if (/postulaciones (pendientes|activas)|ver postulaciones|lista.{0,8}postulaciones/.test(t)) return 'reclutar.lista';
+
   // ── Detección dinámica por nombre de proyecto ────────────────────────────
   // Si el mensaje menciona el nombre de un proyecto conocido + verbo de acción,
   // se infiere la intención sin necesidad de decir "proyecto"
@@ -208,19 +229,6 @@ function detectIntent(text) {
     return 'proyecto.info';
   }
 
-  if (intent === 'tarea.asignar')      return flowTareaAsignar(step, data, message);
-  if (intent === 'tarea.completar')    return flowTareaCompletar(step, data, message);
-  if (intent === 'tarea.lista')        return flowTareaLista(step, data, message);
-  if (intent === 'ausencia.pedir')     return flowAusenciaPedir(step, data, message);
-  if (intent === 'ausencia.registrar') return flowAusenciaRegistrar(step, data, message);
-  if (intent === 'ausencia.cancelar')  return flowAusenciaCancelar(step, data, message);
-  if (intent === 'ausencia.lista')     return flowAusenciaLista(step, data, message);
-  if (intent === 'ticket.abrir')       return flowTicketAbrir(step, data, message);
-  if (intent === 'ticket.cerrar')      return flowTicketCerrar(step, data, message);
-  if (intent === 'ticket.lista')       return flowTicketLista(step, data, message);
-  if (intent === 'reclutar.postular')  return flowReclutarPostular(step, data, message);
-  if (intent === 'reclutar.cerrar')    return flowReclutarCerrar(step, data, message);
-  if (intent === 'reclutar.lista')     return flowReclutarLista(step, data, message);
   return null;
 }
 
@@ -1742,8 +1750,8 @@ async function execConfigurar(data, message) {
 async function flowTareaAsignar(step, data, message) {
   if (step === 'start') {
     if (!data.targetUser) return { reply: `¿A quién le asigno la tarea? Menciónalo ${K.timida()}`, nextStep: 'awaitTarget' };
-    if (!data.proyectoId) return { reply: `¿A qué proyecto pertenece la tarea? ${K.tranqui()}`, nextStep: 'awaitProyecto' };
-    if (!data.capitulo)   return { reply: `¿De qué capítulo es la tarea? ${K.timida()}`, nextStep: 'awaitCapitulo' };
+    if (!data.proyectoId) return { reply: `¿A qué proyecto pertenece? ${K.tranqui()}`, nextStep: 'awaitProyecto' };
+    if (!data.capitulo)   return { reply: `¿De qué capítulo es? ${K.timida()}`, nextStep: 'awaitCapitulo' };
     if (!data.labor)      return { reply: `¿Qué labor tiene que hacer? (ej: traducción, clean, typeo) ${K.tranqui()}`, nextStep: 'awaitLabor' };
     return execTareaAsignar(data, message);
   }
@@ -1773,7 +1781,7 @@ async function flowTareaAsignar(step, data, message) {
   }
   if (step === 'awaitCapitulo') {
     const m = message.content.match(/\d+(?:[.,]\d+)?/);
-    if (!m) return { reply: `No detecté un número de capítulo... intenta de nuevo ${K.disculpa()}` };
+    if (!m) return { reply: `No detecté un número de capítulo... inténtalo de nuevo ${K.disculpa()}` };
     data.capitulo = m[0];
     if (!data.labor) return { reply: `¿Y qué labor tiene que hacer? ${K.tranqui()}`, nextStep: 'awaitLabor' };
     return execTareaAsignar(data, message);
@@ -1815,20 +1823,12 @@ async function execTareaAsignar(data, message) {
 
 async function flowTareaCompletar(step, data, message) {
   if (step === 'start') {
-    // Intentar detectar ID en el mensaje
     const idMatch = message.content.match(/task_\d+/);
-    if (idMatch) {
-      data.tareaId = idMatch[0];
-      return execTareaCompletar(data, message);
-    }
-    // Buscar tareas del usuario
+    if (idMatch) { data.tareaId = idMatch[0]; return execTareaCompletar(data, message); }
     const misTareas = Tareas.listPorUsuario(message.author.id);
-    if (misTareas.length === 1) {
-      data.tareaId = misTareas[0].id;
-      return execTareaCompletar(data, message);
-    }
+    if (misTareas.length === 1) { data.tareaId = misTareas[0].id; return execTareaCompletar(data, message); }
     if (misTareas.length > 1) {
-      const lista = misTareas.slice(0,5).map(t => `\`${t.id}\` — ${t.proyectoName} Cap.${t.capitulo} (${t.labor})`).join('\n');
+      const lista = misTareas.slice(0, 5).map(t => `\`${t.id}\` — ${t.proyectoName} Cap.${t.capitulo} (${t.labor})`).join('\n');
       return { reply: `Tienes varias tareas activas ${K.timida()} ¿Cuál es la que terminaste?\n${lista}`, nextStep: 'awaitId' };
     }
     return { reply: `¿Cuál es el ID de la tarea que completaste? (ej: \`task_1234567890\`) ${K.timida()}`, nextStep: 'awaitId' };
@@ -1843,20 +1843,18 @@ async function flowTareaCompletar(step, data, message) {
 
 async function execTareaCompletar(data, message) {
   const tarea = Tareas.get(data.tareaId);
-  if (!tarea) return { reply: `No encontré la tarea \`${data.tareaId}\` ${K.timida()}`, done: true };
+  if (!tarea)           return { reply: `No encontré la tarea \`${data.tareaId}\` ${K.timida()}`, done: true };
   if (tarea.completada) return { reply: `Esa tarea ya estaba completada ${K.feliz()}`, done: true };
   const esAsignado = tarea.asignadoId === message.author.id;
   if (!esAsignado && !hasModRole(message.member)) {
     return { reply: `Solo **${tarea.asignadoName}** o un mod pueden completar esa tarea ${K.timida()}`, done: true };
   }
   Tareas.completar(data.tareaId);
-
   const canalId = process.env.TASKS_CHANNEL_ID;
   if (canalId) {
     const canal = await message.client.channels.fetch(canalId).catch(() => null);
     if (canal) await canal.send(`✅ <@${tarea.asignadoId}> terminó la **${tarea.labor}** del cap. **${tarea.capitulo}** de **${tarea.proyectoName}** ${K.feliz()} ¡Buen trabajo!`);
   }
-
   return { reply: pick([
     `¡Perfecto! Tarea \`${data.tareaId}\` marcada como completada ${K.feliz()} ¡Buen trabajo!`,
     `Listo, ya no recibirás recordatorios por esa ${K.feliz()} ¡Bien hecho!`,
@@ -1867,8 +1865,7 @@ async function flowTareaLista(step, data, message) {
   const filtro = data.targetUser?.id;
   const tareas = filtro ? Tareas.listPorUsuario(filtro) : Tareas.listActivas();
   if (!tareas.length) return { reply: pick([`¡No hay tareas activas${filtro ? ` para **${data.targetUser.username}**` : ''}! ${K.feliz()} Todo en orden.`]), done: true };
-
-  const lineas = tareas.slice(0,10).map(t => {
+  const lineas = tareas.slice(0, 10).map(t => {
     const dias = Math.floor((Date.now() - new Date(t.creadoAt).getTime()) / 86400000);
     return `\`${t.id}\` **${t.proyectoName}** Cap.${t.capitulo} — ${t.labor} → <@${t.asignadoId}> (${dias}d)`;
   });
@@ -1879,24 +1876,22 @@ async function flowTareaLista(step, data, message) {
 // FLUJOS V3 — AUSENCIAS
 // ────────────────────────────────────────────────────────────────────────────
 
-function parseDate(str) {
-  const m = str.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+function parseDateV3(str) {
+  const m = str.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
   if (!m) return null;
-  const d = new Date(parseInt(m[3]), parseInt(m[2])-1, parseInt(m[1]));
+  const d = new Date(parseInt(m[3]), parseInt(m[2]) - 1, parseInt(m[1]));
   if (isNaN(d.getTime()) || d <= new Date()) return null;
   return d.toISOString();
 }
 
 async function flowAusenciaPedir(step, data, message) {
   if (step === 'start') {
-    // Detectar fecha en el mensaje original
-    const fechaM = message.content.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
-    if (fechaM) data.hasta = parseDate(fechaM[0]);
-    const razonM = message.content.match(/(?:por(?:que)?|porque|motivo|ya que|razon)[:\s]+(.+)/i);
+    const fechaM = message.content.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+    if (fechaM) data.hasta = parseDateV3(fechaM[0]);
+    const razonM = message.content.match(/(?:por(?:que)?|motivo|ya que|razon)[:\s]+(.+)/i);
     if (razonM) data.razon = razonM[1].trim();
-
     if (!data.razon) return { reply: pick([`¿Cuál es el motivo de tu ausencia? ${K.timida()}`, `Cuéntame brevemente por qué te ausentarás ${K.tranqui()}`]), nextStep: 'awaitRazon' };
-    if (!data.hasta) return { reply: pick([`¿Hasta cuándo estarás fuera? (DD/MM/AAAA) ${K.timida()}`, `¿Cuándo planeas volver? Dime la fecha en formato DD/MM/AAAA ${K.tranqui()}`]), nextStep: 'awaitFecha' };
+    if (!data.hasta) return { reply: pick([`¿Hasta cuándo estarás fuera? (DD/MM/AAAA) ${K.timida()}`, `¿Cuándo planeas volver? (DD/MM/AAAA) ${K.tranqui()}`]), nextStep: 'awaitFecha' };
     return execAusenciaCrear(data, message, message.author, message.author.id);
   }
   if (step === 'awaitRazon') {
@@ -1905,9 +1900,9 @@ async function flowAusenciaPedir(step, data, message) {
     return execAusenciaCrear(data, message, message.author, message.author.id);
   }
   if (step === 'awaitFecha') {
-    const fechaM = message.content.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+    const fechaM = message.content.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
     if (!fechaM) return { reply: `Esa fecha no la reconocí... usa el formato **DD/MM/AAAA** ${K.disculpa()}` };
-    data.hasta = parseDate(fechaM[0]);
+    data.hasta = parseDateV3(fechaM[0]);
     if (!data.hasta) return { reply: `La fecha debe ser futura y válida... inténtalo de nuevo ${K.disculpa()}` };
     return execAusenciaCrear(data, message, message.author, message.author.id);
   }
@@ -1935,9 +1930,9 @@ async function flowAusenciaRegistrar(step, data, message) {
     return execAusenciaCrear(data, message, data.targetUser || message.author, message.author.id);
   }
   if (step === 'awaitFecha') {
-    const fechaM = message.content.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+    const fechaM = message.content.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
     if (!fechaM) return { reply: `Fecha no reconocida... usa DD/MM/AAAA ${K.disculpa()}` };
-    data.hasta = parseDate(fechaM[0]);
+    data.hasta = parseDateV3(fechaM[0]);
     if (!data.hasta) return { reply: `La fecha debe ser futura... inténtalo de nuevo ${K.disculpa()}` };
     return execAusenciaCrear(data, message, data.targetUser || message.author, message.author.id);
   }
@@ -1957,7 +1952,6 @@ async function execAusenciaCrear(data, message, usuario, creadoPor) {
 
   const hastaTs = Math.floor(new Date(data.hasta).getTime() / 1000);
 
-  // Publicar en canal de ausencias
   const canalAusId = process.env.ABSENCES_CHANNEL_ID;
   if (canalAusId) {
     const canal = await message.client.channels.fetch(canalAusId).catch(() => null);
@@ -1968,7 +1962,6 @@ async function execAusenciaCrear(data, message, usuario, creadoPor) {
     }
   }
 
-  // Notificar en registros
   const canalReg = process.env.RECORDS_CHANNEL_ID;
   if (canalReg) {
     const canal = await message.client.channels.fetch(canalReg).catch(() => null);
@@ -2005,10 +1998,9 @@ async function flowAusenciaCancelar(step, data, message) {
 }
 
 async function flowAusenciaLista(step, data, message) {
-  if (!hasModRole(message.member)) return { reply: `E-eh... solo los mods pueden ver la lista de ausencias ${K.timida()}`, done: true };
   const ausencias = Ausencias.listActivas();
   if (!ausencias.length) return { reply: `¡No hay ausencias activas! ${K.feliz()} El equipo completo está disponible.`, done: true };
-  const lineas = ausencias.map(a => `**${a.usuarioName}** — hasta <t:${Math.floor(new Date(a.hasta).getTime()/1000)}:D> | ${a.razon}`);
+  const lineas = ausencias.map(a => `**${a.usuarioName}** — hasta <t:${Math.floor(new Date(a.hasta).getTime() / 1000)}:D> | ${a.razon}`);
   return { reply: `🏖️ **Ausencias activas:**\n${lineas.join('\n')}`, done: true };
 }
 
@@ -2016,13 +2008,13 @@ async function flowAusenciaLista(step, data, message) {
 // FLUJOS V3 — TICKETS
 // ────────────────────────────────────────────────────────────────────────────
 
-const TIPOS_ERROR_LABEL = { mal_subido: 'Mal subido', desorden: 'Desorden', no_carga: 'No carga', otro: 'Otro' };
+const TIPOS_ERROR_V3 = { mal_subido: 'Mal subido', desorden: 'Desorden de páginas', no_carga: 'No carga / 404', otro: 'Otro' };
 
 async function flowTicketAbrir(step, data, message) {
   if (step === 'start') {
     if (!data.proyectoId) return { reply: pick([`¿En qué proyecto encontraste el error? ${K.timida()}`, `¿Qué proyecto tiene el problema? ${K.tranqui()}`]), nextStep: 'awaitProyecto' };
     if (!data.capitulo)   return { reply: `¿En qué capítulo está el error? ${K.timida()}`, nextStep: 'awaitCapitulo' };
-    if (!data.tipoError)  return { reply: `¿Qué tipo de error es?\n\`mal_subido\` Mal subido\n\`desorden\` Desorden de páginas\n\`no_carga\` No carga\n\`otro\` Otro ${K.tranqui()}`, nextStep: 'awaitTipo' };
+    if (!data.tipoError)  return { reply: `¿Qué tipo de error es?\n\`mal_subido\` Páginas faltantes/duplicadas\n\`desorden\` Páginas desordenadas\n\`no_carga\` No carga / Error 404\n\`otro\` Otro ${K.tranqui()}`, nextStep: 'awaitTipo' };
     if (!data.plataforma) return { reply: `¿En qué plataforma? \`tmo\`, \`colorcito\` o \`ambas\` ${K.timida()}`, nextStep: 'awaitPlataforma' };
     return execTicketAbrir(data, message);
   }
@@ -2033,7 +2025,7 @@ async function flowTicketAbrir(step, data, message) {
     }
     if (!data.proyectoId) return { reply: `No reconocí ese proyecto... intenta con el nombre exacto ${K.disculpa()}` };
     if (!data.capitulo)   return { reply: `¿En qué capítulo? ${K.timida()}`, nextStep: 'awaitCapitulo' };
-    if (!data.tipoError)  return { reply: `¿Tipo de error?\n\`mal_subido\` \`desorden\` \`no_carga\` \`otro\` ${K.tranqui()}`, nextStep: 'awaitTipo' };
+    if (!data.tipoError)  return { reply: `¿Tipo de error? \`mal_subido\` / \`desorden\` / \`no_carga\` / \`otro\` ${K.tranqui()}`, nextStep: 'awaitTipo' };
     if (!data.plataforma) return { reply: `¿Plataforma? \`tmo\` / \`colorcito\` / \`ambas\` ${K.timida()}`, nextStep: 'awaitPlataforma' };
     return execTicketAbrir(data, message);
   }
@@ -2041,36 +2033,31 @@ async function flowTicketAbrir(step, data, message) {
     const m = message.content.match(/\d+(?:[.,]\d+)?/);
     if (!m) return { reply: `No detecté el número... inténtalo de nuevo ${K.disculpa()}` };
     data.capitulo = m[0];
-    if (!data.tipoError)  return { reply: `¿Tipo de error?\n\`mal_subido\` \`desorden\` \`no_carga\` \`otro\` ${K.tranqui()}`, nextStep: 'awaitTipo' };
+    if (!data.tipoError)  return { reply: `¿Tipo de error? \`mal_subido\` / \`desorden\` / \`no_carga\` / \`otro\` ${K.tranqui()}`, nextStep: 'awaitTipo' };
     if (!data.plataforma) return { reply: `¿Plataforma? \`tmo\` / \`colorcito\` / \`ambas\` ${K.timida()}`, nextStep: 'awaitPlataforma' };
     return execTicketAbrir(data, message);
   }
   if (step === 'awaitTipo') {
     const t = message.content.toLowerCase();
-    if (t.includes('mal') || t.includes('subido'))    data.tipoError = 'mal_subido';
-    else if (t.includes('desor') || t.includes('pag')) data.tipoError = 'desorden';
-    else if (t.includes('carga') || t.includes('404')) data.tipoError = 'no_carga';
-    else data.tipoError = 'otro';
+    if      (t.includes('mal') || t.includes('falt') || t.includes('duplic')) data.tipoError = 'mal_subido';
+    else if (t.includes('desor') || t.includes('pag'))                         data.tipoError = 'desorden';
+    else if (t.includes('carga') || t.includes('404'))                         data.tipoError = 'no_carga';
+    else                                                                        data.tipoError = 'otro';
     if (!data.plataforma) return { reply: `¿Plataforma? \`tmo\` / \`colorcito\` / \`ambas\` ${K.timida()}`, nextStep: 'awaitPlataforma' };
     return execTicketAbrir(data, message);
   }
   if (step === 'awaitPlataforma') {
     const t = message.content.toLowerCase();
-    if (t.includes('tmo') && t.includes('color'))  data.plataforma = 'ambas';
-    else if (t.includes('color'))                   data.plataforma = 'colorcito';
-    else                                            data.plataforma = 'tmo';
+    if      (t.includes('tmo') && t.includes('color')) data.plataforma = 'ambas';
+    else if (t.includes('color'))                       data.plataforma = 'colorcito';
+    else                                                data.plataforma = 'tmo';
     data.descripcion = '';
     return execTicketAbrir(data, message);
   }
 }
 
 async function execTicketAbrir(data, message) {
-  // Delegar a la lógica del comando ticket
-  const ticketCmd = require('./commands/ticket'); // lazy
-  // Construir un pseudo-interaction para reutilizar la lógica
-  // En lugar de eso, replicamos la lógica aquí directamente
-  const { Projects: P } = require('../utils/storage');
-  const project = P.get(data.proyectoId);
+  const project = Projects.get(data.proyectoId);
   if (!project) return { reply: `No encontré ese proyecto ${K.timida()}`, done: true };
 
   const staffGuildId = process.env.DISCORD_GUILD_ID;
@@ -2087,34 +2074,36 @@ async function execTicketAbrir(data, message) {
     descripcion:  data.descripcion || '',
     channelId:    'pending',
   });
-
   if (!ticket) return { reply: `A-ay... algo salió mal al crear el ticket ${K.triste()} Intenta de nuevo.`, done: true };
 
   try {
     const { ChannelType, PermissionFlagsBits } = require('discord.js');
     const staffGuild = await message.client.guilds.fetch(staffGuildId);
     const canal = await staffGuild.channels.create({
-      name:   `ticket-${String(ticket.numero).padStart(3,'0')}-${project.name.toLowerCase().replace(/\s+/g,'-').slice(0,20)}`,
-      type:   ChannelType.GuildText,
-      topic:  `Ticket ${ticket.id} — ${project.name} Cap.${data.capitulo}`,
+      name:  `ticket-${String(ticket.numero).padStart(3, '0')}-${project.name.toLowerCase().replace(/\s+/g, '-').slice(0, 20)}`,
+      type:  ChannelType.GuildText,
+      topic: `Ticket ${ticket.id} — ${project.name} Cap.${data.capitulo}`,
       permissionOverwrites: [
-        { id: staffGuild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
-        { id: MOD_ROLE_ID, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
-        { id: staffGuild.members.me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
+        { id: staffGuild.roles.everyone.id,  deny:  [PermissionFlagsBits.ViewChannel] },
+        { id: MOD_ROLE_ID,                   allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
+        { id: staffGuild.members.me.id,      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
       ],
     });
     ticket.channelId = canal.id;
     Tickets.save(ticket);
 
     await canal.send({
-      content: `<@&${MOD_ROLE_ID}> — Nuevo ticket \`${ticket.id}\`\n**Proyecto:** ${project.name} | **Cap:** ${data.capitulo} | **Error:** ${TIPOS_ERROR_LABEL[data.tipoError]} | **Plataforma:** ${data.plataforma}\n**Reportado por:** ${message.author.username}`,
+      content: pick([
+        `<@&${MOD_ROLE_ID}> — Nuevo ticket \`${ticket.id}\` ${K.timida()}\n**Proyecto:** ${project.name} | **Cap:** ${data.capitulo} | **Error:** ${TIPOS_ERROR_V3[data.tipoError]} | **Plataforma:** ${data.plataforma}\n**Reportado por:** ${message.author.username}`,
+        `<@&${MOD_ROLE_ID}> — Un lector reportó un error ${K.tranqui()} **${project.name}** Cap.${data.capitulo} | ${TIPOS_ERROR_V3[data.tipoError]}`,
+      ]),
       allowedMentions: { roles: [MOD_ROLE_ID] },
     });
 
     const canalReg = process.env.RECORDS_CHANNEL_ID;
     if (canalReg) {
       const reg = await message.client.channels.fetch(canalReg).catch(() => null);
-      if (reg) await reg.send(`🎫 Ticket \`${ticket.id}\` — **${project.name}** Cap.${data.capitulo} | ${TIPOS_ERROR_LABEL[data.tipoError]} | Canal: ${canal}`);
+      if (reg) await reg.send(`🎫 Ticket \`${ticket.id}\` — **${project.name}** Cap.${data.capitulo} | ${TIPOS_ERROR_V3[data.tipoError]} | Canal: ${canal}`);
     }
   } catch (err) {
     return { reply: `N-no pude crear el canal del ticket ${K.triste()} Error: ${err.message}`, done: true };
@@ -2127,7 +2116,6 @@ async function execTicketAbrir(data, message) {
 }
 
 async function flowTicketCerrar(step, data, message) {
-  if (!hasModRole(message.member)) return { reply: `E-eh... solo los mods pueden cerrar tickets ${K.timida()}`, done: true };
   if (step === 'start') {
     const idMatch = message.content.match(/ticket_\d{3}/);
     if (idMatch) { data.ticketId = idMatch[0]; return execTicketCerrar(data, message); }
@@ -2143,7 +2131,7 @@ async function flowTicketCerrar(step, data, message) {
 
 async function execTicketCerrar(data, message) {
   const ticket = Tickets.get(data.ticketId);
-  if (!ticket)                  return { reply: `No encontré el ticket \`${data.ticketId}\` ${K.timida()}`, done: true };
+  if (!ticket)                     return { reply: `No encontré el ticket \`${data.ticketId}\` ${K.timida()}`, done: true };
   if (ticket.estado === 'cerrado') return { reply: `Ese ticket ya está cerrado ${K.tranqui()}`, done: true };
 
   Tickets.cerrar(data.ticketId, message.author.id);
@@ -2152,7 +2140,7 @@ async function execTicketCerrar(data, message) {
     const usuario = await message.client.users.fetch(ticket.usuarioId);
     if (usuario) await usuario.send(pick([
       `¡Hola! ${K.feliz()} El error que reportaste en el cap. **${ticket.capitulo}** de **${ticket.proyectoName}** ya fue solucionado. ¡Gracias por avisarnos!`,
-      `¡Buenas! ${K.tranqui()} El problema en **${ticket.proyectoName}** cap. **${ticket.capitulo}** ya fue corregido. ¡Muchas gracias!`,
+      `¡Buenas! ${K.tranqui()} El problema en **${ticket.proyectoName}** cap. **${ticket.capitulo}** ya fue corregido. ¡Muchas gracias por tu reporte!`,
     ])).catch(() => {});
   } catch { /* ok */ }
 
@@ -2175,10 +2163,9 @@ async function execTicketCerrar(data, message) {
 }
 
 async function flowTicketLista(step, data, message) {
-  if (!hasModRole(message.member)) return { reply: `E-eh... solo los mods pueden ver los tickets ${K.timida()}`, done: true };
   const tickets = Tickets.listAbiertos();
   if (!tickets.length) return { reply: `¡No hay tickets abiertos! ${K.feliz()} Todo en orden.`, done: true };
-  const lineas = tickets.slice(0,8).map(t => `\`${t.id}\` **${t.proyectoName}** Cap.${t.capitulo} — ${TIPOS_ERROR_LABEL[t.tipoError]} | ${t.plataforma} | ${t.usuarioName}`);
+  const lineas = tickets.slice(0, 8).map(t => `\`${t.id}\` **${t.proyectoName}** Cap.${t.capitulo} — ${TIPOS_ERROR_V3[t.tipoError]} | ${t.plataforma} | ${t.usuarioName}`);
   return { reply: `🎫 **Tickets abiertos (${tickets.length}):**\n${lineas.join('\n')}`, done: true };
 }
 
@@ -2186,15 +2173,14 @@ async function flowTicketLista(step, data, message) {
 // FLUJOS V3 — RECLUTAMIENTO
 // ────────────────────────────────────────────────────────────────────────────
 
-const ROLES_RECLU = { traductor: 'Traductor', cleaner: 'Cleaner/Redibujador', typesetter: 'Typesetter', qc: 'QC', otro: 'Otro' };
+const ROLES_RECLU = { traductor: 'Traductor', cleaner: 'Cleaner / Redibujador', typesetter: 'Typesetter', qc: 'Control de Calidad (QC)', otro: 'Otro' };
 
 async function flowReclutarPostular(step, data, message) {
-  // Verificar canal de reclutamiento
   const canalRecluId = process.env.RECRUIT_CHANNEL_READER_ID;
   if (canalRecluId && message.channelId !== canalRecluId) {
     return { reply: pick([
-      `E-eh... este comando solo funciona en el canal de reclutamiento ${K.timida()}`,
-      `N-no puedo procesar tu postulación aquí ${K.tranqui()} Ve al canal de reclutamiento.`,
+      `E-eh... este proceso solo funciona en el canal de reclutamiento ${K.timida()} ¡Búscalo y escríbeme allí!`,
+      `N-no puedo procesar tu postulación aquí ${K.tranqui()} Ve al canal de reclutamiento e inténtalo allí.`,
     ]), done: true };
   }
 
@@ -2203,44 +2189,44 @@ async function flowReclutarPostular(step, data, message) {
 
   if (step === 'start') {
     return { reply: pick([
-      `¡Qué bueno que quieras unirte! ${K.feliz()} Vamos a recopilar tus datos. Primero, ¿en qué rol te interesa colaborar?\n\`traductor\` · \`cleaner\` · \`typesetter\` · \`qc\` · \`otro\``,
+      `¡Qué bueno que quieras unirte al equipo! ${K.feliz()} Vamos a recopilar tus datos. ¿En qué rol te interesa colaborar?\n\`traductor\` · \`cleaner\` · \`typesetter\` · \`qc\` · \`otro\``,
       `¡Me alegra mucho! ${K.feliz()} Cuéntame, ¿en qué área te gustaría ayudar?\n\`traductor\` · \`cleaner\` · \`typesetter\` · \`qc\` · \`otro\``,
     ]), nextStep: 'awaitRol' };
   }
   if (step === 'awaitRol') {
     const t = message.content.toLowerCase();
-    if (t.includes('tradu'))      data.rolInteres = 'traductor';
-    else if (t.includes('clean') || t.includes('redib')) data.rolInteres = 'cleaner';
-    else if (t.includes('type') || t.includes('typeset')) data.rolInteres = 'typesetter';
-    else if (t.includes('qc') || t.includes('calidad'))  data.rolInteres = 'qc';
-    else data.rolInteres = 'otro';
+    if      (t.includes('tradu'))                            data.rolInteres = 'traductor';
+    else if (t.includes('clean') || t.includes('redib'))     data.rolInteres = 'cleaner';
+    else if (t.includes('type') || t.includes('typeset'))    data.rolInteres = 'typesetter';
+    else if (t.includes('qc') || t.includes('calidad'))      data.rolInteres = 'qc';
+    else                                                      data.rolInteres = 'otro';
 
     return { reply: pick([
-      `¡Anotado! ${K.feliz()} ¿Tienes experiencia previa en **${ROLES_RECLU[data.rolInteres]}**? (No es obligatoria, ¡enseñamos desde cero!)`,
-      `Perfecto ${K.tranqui()} ¿Y tienes experiencia previa? No te preocupes si no, lo importante es las ganas de aprender.`,
+      `¡Anotado! ${K.feliz()} ¿Tienes experiencia previa en **${ROLES_RECLU[data.rolInteres]}**? No te preocupes si no, ¡enseñamos desde cero!`,
+      `Perfecto ${K.tranqui()} ¿Y tienes experiencia previa? No es obligatoria, lo importante son las ganas de aprender.`,
     ]), nextStep: 'awaitExperiencia' };
   }
   if (step === 'awaitExperiencia') {
     const t = message.content.toLowerCase();
-    if (/s[ií]|tengo|si tengo|algo de/.test(t)) data.experiencia = 'si';
-    else if (/poco|poca|un poco|algo/.test(t))   data.experiencia = 'poca';
-    else                                          data.experiencia = 'no';
+    if      (/s[ií]|tengo|algo de/.test(t)) data.experiencia = 'si';
+    else if (/poco|poca|un poco/.test(t))   data.experiencia = 'poca';
+    else                                    data.experiencia = 'no';
 
-    if (data.experiencia === 'no') {
-      // Mencionar que se enseña
-      return { reply: `¡No te preocupes! ${K.feliz()} En Aeternum enseñamos desde cero a quien tenga ganas. Ahora, ¿cuántas horas a la semana aproximadamente podrías dedicarle? (menos de 5h / entre 5 y 10h / más de 10h)`, nextStep: 'awaitDisponibilidad' };
-    }
-    return { reply: `¡Genial! ${K.tranqui()} ¿Cuántas horas a la semana podrías dedicarle aproximadamente? (menos de 5h / entre 5 y 10h / más de 10h)`, nextStep: 'awaitDisponibilidad' };
+    const notaAprender = data.experiencia === 'no'
+      ? `¡No te preocupes! ${K.feliz()} En Aeternum enseñamos desde cero. `
+      : `¡Genial! ${K.tranqui()} `;
+
+    return { reply: `${notaAprender}¿Cuántas horas a la semana podrías dedicarle aproximadamente?\nMenos de 5h · Entre 5 y 10h · Más de 10h`, nextStep: 'awaitDisponibilidad' };
   }
   if (step === 'awaitDisponibilidad') {
     const t = message.content.toLowerCase();
-    if (t.includes('10') || t.includes('mas') || t.includes('más')) data.disponibilidad = 'mas10';
-    else if (t.includes('5'))                                         data.disponibilidad = '5a10';
-    else                                                              data.disponibilidad = 'menos5';
+    if      (t.includes('10') || t.includes('mas') || t.includes('más')) data.disponibilidad = 'mas10';
+    else if (t.includes('5'))                                             data.disponibilidad = '5a10';
+    else                                                                  data.disponibilidad = 'menos5';
 
     return { reply: pick([
-      `¡Perfecto! ${K.feliz()} Y por último, ¿qué te motivó a querer unirte a Aeternum Translations? ¿Hay algún proyecto que te llamó la atención?`,
-      `¡Casi terminamos! ${K.tranqui()} ¿Por qué quieres unirte? ¿Hay algo específico de Aeternum que te gustó?`,
+      `¡Perfecto! ${K.feliz()} Y por último, ¿qué te motivó a querer unirte a Aeternum? ¿Hay algún proyecto que te llamó la atención?`,
+      `¡Casi terminamos! ${K.tranqui()} ¿Por qué quieres unirte? ¿Hay algo de Aeternum que te gustó especialmente?`,
     ]), nextStep: 'awaitMotivacion' };
   }
   if (step === 'awaitMotivacion') {
@@ -2253,20 +2239,21 @@ async function execReclutarPostular(data, message) {
   const staffGuildId = process.env.DISCORD_GUILD_ID;
   if (!staffGuildId) return { reply: `El servidor de staff no está configurado ${K.triste()}`, done: true };
 
-  const total        = Reclutamiento.list().length + 1;
-  const canalNombre  = `postulacion-${String(total).padStart(3,'0')}-${message.author.username.toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,15)}`;
+  const total       = Reclutamiento.list().length + 1;
+  const canalNombre = `postulacion-${String(total).padStart(3, '0')}-${message.author.username.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 15)}`;
 
   let canal;
   try {
     const { ChannelType, PermissionFlagsBits } = require('discord.js');
     const staffGuild = await message.client.guilds.fetch(staffGuildId);
     canal = await staffGuild.channels.create({
-      name: canalNombre, type: ChannelType.GuildText,
+      name:  canalNombre,
+      type:  ChannelType.GuildText,
       topic: `Postulación de ${message.author.username} — ${ROLES_RECLU[data.rolInteres]}`,
       permissionOverwrites: [
-        { id: staffGuild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
-        { id: MOD_ROLE_ID, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
-        { id: staffGuild.members.me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
+        { id: staffGuild.roles.everyone.id, deny:  [PermissionFlagsBits.ViewChannel] },
+        { id: MOD_ROLE_ID,                  allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
+        { id: staffGuild.members.me.id,     allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
       ],
     });
   } catch (err) {
@@ -2286,10 +2273,15 @@ async function execReclutarPostular(data, message) {
 
   const dispL = { menos5: 'Menos de 5h/sem', '5a10': '5-10h/sem', mas10: '+10h/sem' };
   const expL  = { si: 'Con experiencia', no: 'Sin experiencia (aprende)', poca: 'Poca experiencia' };
-  const notaExtra = data.experiencia === 'no' ? '\n> 📌 Sin experiencia previa — recordar que enseñamos.\n> ⚠️ Recordar que el trabajo no es remunerado.' : '\n> ⚠️ Recordar que el trabajo no es remunerado.';
+  const notaExtra = data.experiencia === 'no'
+    ? '\n> 📌 Sin experiencia previa — recordar que enseñamos desde cero.\n> ⚠️ Recordar que el trabajo no es remunerado.'
+    : '\n> ⚠️ Recordar que el trabajo no es remunerado.';
 
   await canal.send({
-    content: `<@&${MOD_ROLE_ID}> — Nueva postulación de **${message.author.username}**${notaExtra}\n**Rol:** ${ROLES_RECLU[data.rolInteres]} | **Exp:** ${expL[data.experiencia]} | **Disp:** ${dispL[data.disponibilidad]}\n**Motivación:** ${data.motivacion}\nID: \`${solicitud.id}\``,
+    content: pick([
+      `<@&${MOD_ROLE_ID}> — Nueva postulación de **${message.author.username}** ${K.feliz()}${notaExtra}\n**Rol:** ${ROLES_RECLU[data.rolInteres]} | **Exp:** ${expL[data.experiencia]} | **Disp:** ${dispL[data.disponibilidad]}\n**Motivación:** ${data.motivacion}\nID: \`${solicitud.id}\``,
+      `<@&${MOD_ROLE_ID}> — ¡Alguien quiere unirse al equipo! **${message.author.username}** ${K.feliz()}${notaExtra}\n**Rol deseado:** ${ROLES_RECLU[data.rolInteres]} | **Disponibilidad:** ${dispL[data.disponibilidad]}\nID: \`${solicitud.id}\``,
+    ]),
     allowedMentions: { roles: [MOD_ROLE_ID] },
   });
 
@@ -2302,11 +2294,11 @@ async function execReclutarPostular(data, message) {
   return { reply: pick([
     `¡Tu postulación fue enviada! ${K.feliz()} El equipo ya fue notificado y alguien se comunicará contigo pronto. ¡Mucha suerte!`,
     `¡Todo listo! ${K.feliz()} Tu solicitud para **${ROLES_RECLU[data.rolInteres]}** ya está en manos del equipo. ¡Paciencia y mucha suerte!`,
+    `¡Listo! ${K.feliz()} Mandé tu postulación al equipo. Pronto alguien se comunicará contigo. ¡Ánimo!`,
   ]), done: true };
 }
 
 async function flowReclutarCerrar(step, data, message) {
-  if (!hasModRole(message.member)) return { reply: `E-eh... solo los mods pueden cerrar postulaciones ${K.timida()}`, done: true };
   if (step === 'start') {
     const idMatch = message.content.match(/recruit_\d+/);
     if (idMatch) { data.solicitudId = idMatch[0]; return { reply: `¿Cuál es el resultado? \`aceptado\` / \`rechazado\` / \`cerrado\` ${K.tranqui()}`, nextStep: 'awaitResultado' }; }
@@ -2320,9 +2312,9 @@ async function flowReclutarCerrar(step, data, message) {
   }
   if (step === 'awaitResultado') {
     const t = message.content.toLowerCase();
-    if (t.includes('acept'))    data.resultado = 'aceptado';
-    else if (t.includes('rech')) data.resultado = 'rechazado';
-    else                         data.resultado = 'cerrado';
+    if      (t.includes('acept'))  data.resultado = 'aceptado';
+    else if (t.includes('rech'))   data.resultado = 'rechazado';
+    else                           data.resultado = 'cerrado';
     return execReclutarCerrar(data, message);
   }
 }
@@ -2334,10 +2326,11 @@ async function execReclutarCerrar(data, message) {
   Reclutamiento.cerrar(data.solicitudId, message.author.id, data.resultado);
 
   const dmMsgs = {
-    aceptado:  [`¡Hola **${solicitud.usuarioName}**! ${K.feliz()} Tu postulación para **${ROLES_RECLU[solicitud.rolInteres]}** fue **aceptada**. ¡Bienvenido/a al equipo! El staff te contactará pronto.`],
-    rechazado: [`Hola **${solicitud.usuarioName}** ${K.tranqui()} Gracias por tu interés. Por ahora tu postulación para **${ROLES_RECLU[solicitud.rolInteres]}** no pudo continuar. ¡No te desanimes!`],
-    cerrado:   [`Hola ${K.tranqui()} Tu solicitud de postulación fue cerrada. Si tienes dudas, puedes escribir en el canal de reclutamiento.`],
+    aceptado:  [`¡Hola **${solicitud.usuarioName}**! ${K.feliz()} Tu postulación para **${ROLES_RECLU[solicitud.rolInteres]}** fue **aceptada**. ¡Bienvenido/a al equipo de Aeternum Translations! El staff se comunicará contigo pronto con los siguientes pasos.`],
+    rechazado: [`Hola **${solicitud.usuarioName}** ${K.tranqui()} Gracias por tu interés en Aeternum. Por ahora tu postulación para **${ROLES_RECLU[solicitud.rolInteres]}** no pudo continuar. ¡No te desanimes, en el futuro podrías intentarlo de nuevo!`],
+    cerrado:   [`Hola ${K.tranqui()} Te escribo para avisarte que tu solicitud de postulación fue cerrada. Si tienes alguna duda, puedes escribir nuevamente en el canal de reclutamiento.`],
   };
+
   try {
     const u = await message.client.users.fetch(solicitud.usuarioId);
     if (u) await u.send(pick(dmMsgs[data.resultado])).catch(() => {});
@@ -2349,23 +2342,23 @@ async function execReclutarCerrar(data, message) {
       const g = await message.client.guilds.fetch(staffGuildId);
       const c = await g.channels.fetch(solicitud.channelId).catch(() => null);
       if (c) {
-        await c.send(`${data.resultado === 'aceptado' ? '✅' : '❌'} Proceso cerrado — **${data.resultado}**. Canal eliminándose en 15 segundos.`);
+        const emoji = data.resultado === 'aceptado' ? '✅' : data.resultado === 'rechazado' ? '❌' : '🔒';
+        await c.send(`${emoji} Proceso cerrado por <@${message.author.id}> — Resultado: **${data.resultado}**. Canal eliminándose en 15 segundos.`);
         setTimeout(() => c.delete('Postulación cerrada').catch(() => {}), 15_000);
       }
     } catch { /* ok */ }
   }
 
   return { reply: pick([
-    `¡Postulación \`${data.solicitudId}\` cerrada! ${K.feliz()} Resultado: **${data.resultado}**. El candidato ya fue notificado.`,
+    `¡Postulación \`${data.solicitudId}\` cerrada! ${K.feliz()} Resultado: **${data.resultado}**. El candidato ya fue notificado por DM.`,
     `Cerrada ${K.tranqui()} \`${data.solicitudId}\` — ${data.resultado}. Canal eliminándose en breve.`,
   ]), done: true };
 }
 
 async function flowReclutarLista(step, data, message) {
-  if (!hasModRole(message.member)) return { reply: `E-eh... solo los mods pueden ver las postulaciones ${K.timida()}`, done: true };
   const pendientes = Reclutamiento.listPendientes();
-  if (!pendientes.length) return { reply: `No hay postulaciones pendientes ${K.feliz()}`, done: true };
-  const lineas = pendientes.slice(0,8).map(s => `\`${s.id}\` **${s.usuarioName}** — ${ROLES_RECLU[s.rolInteres]} | <#${s.channelId}>`);
+  if (!pendientes.length) return { reply: `No hay postulaciones pendientes en este momento ${K.feliz()}`, done: true };
+  const lineas = pendientes.slice(0, 8).map(s => `\`${s.id}\` **${s.usuarioName}** — ${ROLES_RECLU[s.rolInteres]} | <#${s.channelId}>`);
   return { reply: `📋 **Postulaciones pendientes (${pendientes.length}):**\n${lineas.join('\n')}`, done: true };
 }
 
@@ -2553,7 +2546,9 @@ module.exports = {
     }
 
     // ── Verificar permisos por intención ──────────────────────────────────
-    const needsMod     = intent.startsWith('mod.') || ['tarea.asignar','tarea.completar','tarea.lista','ausencia.registrar','ausencia.lista','ticket.cerrar','ticket.lista','reclutar.cerrar','reclutar.lista'].includes(intent);
+    const needsMod     = intent.startsWith('mod.')
+                      || ['tarea.asignar','tarea.lista','ausencia.registrar','ausencia.lista',
+                          'ticket.cerrar','ticket.lista','reclutar.cerrar','reclutar.lista'].includes(intent);
     const needsAnnounce= ['anunciar','avisar'].includes(intent);
     const needsManage  = intent.startsWith('proyecto.') || intent === 'sincronizar' || intent === 'configurar';
 
