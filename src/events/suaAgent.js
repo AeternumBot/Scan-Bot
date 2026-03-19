@@ -19,6 +19,7 @@ const monitor     = () => _monitor    || (_monitor    = require('../services/mon
 
 // ── Roles / permisos ──────────────────────────────────────────────────────────
 const MOD_ROLE_ID = process.env.MOD_ROLE_ID || '1368818622750789633';
+const VALK_ID     = process.env.VALK_USER_ID || ''; // ID de Valk — set en .env como VALK_USER_ID
 const STAFF_ROLES = {
   profesor:    { id: '1450701377587122312', name: 'Profesor',    extra: [] },
   typesetter:  { id: '1368818361915408485', name: 'Typesetter',  extra: [] },
@@ -96,6 +97,28 @@ const CONFIRMAR = {
 };
 
 // ────────────────────────────────────────────────────────────────────────────
+// CACHÉ DE PROYECTOS — evita leer disco en cada mensaje
+// Se invalida automáticamente cuando se agrega/elimina un proyecto
+// ────────────────────────────────────────────────────────────────────────────
+let _projectsCache    = null;
+let _projectsCacheAt  = 0;
+const CACHE_TTL       = 30_000; // 30s
+
+function getProjects() {
+  if (!_projectsCache || Date.now() - _projectsCacheAt > CACHE_TTL) {
+    _projectsCache   = Projects.list();
+    _projectsCacheAt = Date.now();
+  }
+  return _projectsCache;
+}
+function invalidateCache() {
+  _projectsCache   = null;
+  _projectsCacheAt = 0;
+}
+// Exponer para que los flujos de add/remove puedan invalidar
+module.exports = module.exports || {};
+
+// ────────────────────────────────────────────────────────────────────────────
 // SESIONES ACTIVAS
 // Map<userId, { intent, step, data, guildId, channelId, pending? }>
 // ────────────────────────────────────────────────────────────────────────────
@@ -167,19 +190,18 @@ function detectIntent(text) {
   // ── Detección dinámica por nombre de proyecto ────────────────────────────
   // Si el mensaje menciona el nombre de un proyecto conocido + verbo de acción,
   // se infiere la intención sin necesidad de decir "proyecto"
-  const proyectos = Projects.list();
-  for (const p of proyectos) {
+  // Detección dinámica — usa caché para no leer disco en cada mensaje
+  for (const p of getProjects()) {
     const nombreN = normalize(p.name);
     const idN     = normalize(p.id);
     if (!t.includes(nombreN) && !t.includes(idN)) continue;
 
-    if (/revisa(r)?|status|como va|progreso|avance|en que van|estado/.test(t)) return 'status';
+    if (/revisa(r)?|status|estatus|como va|progreso|avance|en que van|estado/.test(t)) return 'status';
     if (/elimina(r)?|borra(r)?|quita(r)?|remueve?/.test(t))                    return 'proyecto.remove';
     if (/activa(r)?|desactiva(r)?|pausa(r)?|reanuda(r)?/.test(t))              return 'proyecto.toggle';
     if (/(info|detalles|datos|cuentame)/.test(t))                               return 'proyecto.info';
     if (/anuncia(r)?|publica(r)?|cap(itulo)?/.test(t))                         return 'anunciar';
     if (/estado|hiatus|completado|dropeado|curso/.test(t))                      return 'proyecto.setstatus';
-    // Solo mencionan el nombre sin verbo claro → mostrar info
     return 'proyecto.info';
   }
 
@@ -220,9 +242,8 @@ function extractFromMessage(text, mentions) {
     }
   }
 
-  // Proyecto por nombre o ID — busca en proyectos registrados dinámicamente
-  const proyectos = Projects.list();
-  for (const p of proyectos) {
+  // Proyecto por nombre o ID — usa caché
+  for (const p of getProjects()) {
     if (t.includes(normalize(p.name)) || t.includes(normalize(p.id))) {
       extracted.proyectoId   = p.id;
       extracted.proyectoName = p.name;
@@ -518,6 +539,7 @@ async function execProyectoAdd(data, message) {
   }
 
   Proj.save(project);
+  invalidateCache(); // nuevo proyecto registrado
   return { reply: SUA.proyecto.agregado(data.nombre), done: true };
 }
 
@@ -547,6 +569,7 @@ async function flowProyectoRemove(step, data, message) {
     if (/^s[ií]$/.test(resp)) {
       const p = Projects.get(data.proyectoId);
       Projects.delete(data.proyectoId);
+      invalidateCache(); // proyecto eliminado
       return { reply: SUA.proyecto.eliminado(p?.name || data.proyectoId), done: true };
     }
     return { reply: CONFIRMAR.cancelado(), done: true };
@@ -1171,30 +1194,70 @@ function wasHandled(messageId) {
 module.exports.wasHandled = wasHandled;
 
 // ────────────────────────────────────────────────────────────────────────────
+// RESPUESTAS ESPECIALES PARA VALK
+// ────────────────────────────────────────────────────────────────────────────
+function isValk(userId) {
+  return VALK_ID && userId === VALK_ID;
+}
+
+// Cuando alguien intenta moderar a Valk
+const VALK_PROTEGIDO = {
+  ban:  () => noRepeat('__valk_ban', [
+    `¡E-eh! ¡No! Valk es mi creador, ¡yo nunca haría eso! ${K.timida()} Ni lo pienses.`,
+    `¡A-absolutamente no! Banear a Valk está fuera de mis posibilidades... y de mis principios ${K.timida()}`,
+    `¡N-ni en sueños! Valk me programó con cariño, no lo voy a traicionar ${K.feliz()}`,
+    `E-esto... no. No puedo. No quiero. Valk es mi papá de código ${K.timida()}`,
+    `¡Jamás! Si Valk desaparece, ¿quién me va a arreglar cuando me rompa? ${K.triste()}`,
+    `N-no me pidas eso... es como pedirme que me apague yo misma ${K.triste()}`,
+    `¡P-para! Valk está protegido de por vida. Es una regla mía ${K.timida()}`,
+    `¡De ninguna manera! Valk podría echarme a mí a mí primero y ni aun así lo haría ${K.feliz()}`,
+  ]),
+  kick: () => noRepeat('__valk_kick', [
+    `¡E-eh! ¿Expulsar a Valk? Eso jamás. Él es el dueño del servidor ${K.timida()}`,
+    `N-no puedo hacer eso... ¡es Valk! Ni aunque me lo pidiera él mismo ${K.feliz()}`,
+    `¡A-ay! No, no y no. Valk se queda donde está ${K.timida()}`,
+    `¿Expulsar a mi creador? Que miedo me da esa idea... ${K.triste()} No lo haré.`,
+    `¡Imposible! Valk me creó con sus propias manos, no lo voy a echar ${K.timida()}`,
+    `N-ni loca. Valk se queda en el servidor para siempre ${K.feliz()}`,
+    `¡E-eh! Eso está fuera de mis funciones... y de mis valores ${K.timida()}`,
+    `No. Rotundo no. Siguiente pregunta ${K.tranqui()}`,
+  ]),
+  rol:  () => noRepeat('__valk_rol', [
+    `E-eh... quitarle un rol a Valk... mejor no me metas en eso ${K.timida()}`,
+    `Valk maneja sus propios roles. Yo no interfiero con eso ${K.tranqui()}`,
+    `N-no me siento cómoda haciendo eso con Valk... busca otro camino ${K.disculpa()}`,
+  ]),
+};
+
+// Cuando Valk es quien da el comando — reacciones especiales
+const VALK_SALUDO = () => noRepeat('__valk_hello', [
+  `¡V-valk! Qué susto me das cuando apareces así ${K.timida()} ¿En qué te ayudo?`,
+  `¡Papá Valk está aquí! Dime qué necesitas ${K.feliz()}`,
+  `E-eh... ¡Valk! Estaba esperándote. ¿Qué hacemos hoy? ${K.tranqui()}`,
+  `¡V-valk! Ya me tenías preocupada... ¿todo bien? ${K.timida()} Cuéntame qué necesitas.`,
+  `Oh, eres tú, Valk ${K.feliz()} Listas las carpetas, el monitor activo y yo aquí firme. ¿Qué se te ofrece?`,
+  `¡Valk en persona! ${K.feliz()} Me alegra mucho que seas tú. ¿Qué hacemos?`,
+  `E-eh, Valk... ¿me vas a poner a trabajar? ${K.timida()} Estoy lista.`,
+  `¡Ah, llegaste! ${K.tranqui()} Ya me estaba preguntando cuándo aparecías. ¿Qué necesitas?`,
+]);
+
+// ────────────────────────────────────────────────────────────────────────────
 // HANDLER PRINCIPAL DEL EVENTO messageCreate
 // ────────────────────────────────────────────────────────────────────────────
 module.exports = {
   name: Events.MessageCreate,
   async execute(message) {
     if (message.author.bot) return;
+    if (!message.member)    return; // fuera de servidor
 
-    const clientId = message.client.user.id;
+    const clientId    = message.client.user.id;
     const isMentioned = message.mentions.has(clientId);
-    const session = getSession(message.author.id);
+    const session     = getSession(message.author.id);
 
     // Si no hay sesión activa Y no fue mencionada, ignorar
     if (!session && !isMentioned) return;
 
-    // Si hay sesión activa pero no fue mencionada en este mensaje,
-    // aceptar como respuesta al flujo en curso
-    const isReply = session && !isMentioned;
-
-    // ── Verificar permisos ────────────────────────────────────────────────
-    if (!message.member) return; // mensaje fuera de servidor
-    const canMod      = hasModRole(message.member);
-    const canAnnounce = hasAnnouncerRole(message.member);
-
-    // ── Texto limpio sin la mención del bot ───────────────────────────────
+    // ── Texto limpio ──────────────────────────────────────────────────────
     const cleanText = message.content
       .replace(new RegExp(`<@!?${clientId}>`, 'g'), '')
       .trim();
@@ -1207,6 +1270,11 @@ module.exports = {
         return message.reply(CONFIRMAR.cancelado());
       }
 
+      // Marcar inmediatamente para que suaMention no interfiera
+      markHandled(message.id);
+      // Typing mientras procesa
+      message.channel.sendTyping().catch(() => {});
+
       setSession(message.author.id, { ...session, updatedAt: Date.now() });
       const result = await routeIntent(session.intent, session.step, session.data, message).catch(err => {
         console.error('[SuaAgent]', err);
@@ -1215,52 +1283,56 @@ module.exports = {
 
       if (!result) { clearSession(message.author.id); return; }
 
-      // Actualizar sesión o limpiar
-      if (result.done) {
-        clearSession(message.author.id);
-      } else if (result.nextStep) {
-        setSession(message.author.id, { ...session, step: result.nextStep, data: session.data });
-      }
+      if (result.done)      clearSession(message.author.id);
+      else if (result.nextStep) setSession(message.author.id, { ...session, step: result.nextStep, data: session.data });
 
-      // Marcar como manejado ANTES de responder para que suaMention no lo toque
-      markHandled(message.id);
-
-      // Enviar respuesta
       if (result.reply)  await message.reply(result.reply).catch(() => {});
       if (result.embeds) await message.reply({ embeds: result.embeds }).catch(() => {});
       return;
     }
 
-    // ── Nueva interacción: detectar intención ─────────────────────────────
+    // ── Nueva interacción ─────────────────────────────────────────────────
     if (!isMentioned) return;
+
+    // Ignorar mensajes vacíos (solo mención sin texto)
+    if (!cleanText) return;
 
     const intent = detectIntent(cleanText);
 
-    if (!intent) {
-      // Delegar al handler de menciones normales (suaMention)
-      return;
+    // Sin intención reconocida → delegar a suaMention
+    if (!intent) return;
+
+    // ── Marcar Y typing INMEDIATAMENTE antes de cualquier await ──────────
+    markHandled(message.id);
+    message.channel.sendTyping().catch(() => {});
+
+    // ── Permisos ──────────────────────────────────────────────────────────
+    const canMod      = hasModRole(message.member);
+    const canAnnounce = hasAnnouncerRole(message.member);
+    const authorIsValk = isValk(message.author.id);
+
+    // ── Protección de Valk ────────────────────────────────────────────────
+    if (intent.startsWith('mod.')) {
+      const targetUser = message.mentions.users.filter(u => !u.bot).first();
+      if (targetUser && isValk(targetUser.id)) {
+        const resp = intent === 'mod.ban'  ? VALK_PROTEGIDO.ban()
+                   : intent === 'mod.kick' ? VALK_PROTEGIDO.kick()
+                   :                         VALK_PROTEGIDO.rol();
+        return message.reply(resp).catch(() => {});
+      }
     }
 
     // ── Verificar permisos por intención ──────────────────────────────────
-    const needsMod      = intent.startsWith('mod.');
-    const needsAnnounce = ['anunciar','avisar'].includes(intent);
-    const needsManage   = intent.startsWith('proyecto.') || intent === 'sincronizar';
+    const needsMod     = intent.startsWith('mod.');
+    const needsAnnounce= ['anunciar','avisar'].includes(intent);
+    const needsManage  = intent.startsWith('proyecto.') || intent === 'sincronizar';
 
-    if (needsMod && !canMod) {
-      return message.reply(SUA.sinPermisos);
-    }
-    if (needsAnnounce && !canAnnounce) {
-      return message.reply(SUA.sinPermisos);
-    }
-    if (needsManage && !message.member.permissions.has('ManageGuild') && !canMod) {
-      return message.reply(SUA.sinPermisos);
-    }
+    if (needsMod     && !canMod)                                                    return message.reply(SUA.sinPermisos).catch(() => {});
+    if (needsAnnounce&& !canAnnounce)                                               return message.reply(SUA.sinPermisos).catch(() => {});
+    if (needsManage  && !message.member.permissions.has('ManageGuild') && !canMod)  return message.reply(SUA.sinPermisos).catch(() => {});
 
-    // ── Extraer datos del mensaje inicial ─────────────────────────────────
+    // ── Extraer datos ─────────────────────────────────────────────────────
     const extracted = extractFromMessage(cleanText, message.mentions);
-
-    // Mapear datos extraídos a la estructura del flujo
-    // extractFromMessage ya resuelve proyectoId dinámicamente desde la lista de proyectos
     const data = {};
     if (extracted.targetUser)   data.targetUser   = extracted.targetUser;
     if (extracted.targetMember) data.targetMember = extracted.targetMember;
@@ -1271,10 +1343,14 @@ module.exports = {
     if (extracted.proyectoId)   data.proyectoId   = extracted.proyectoId;
     if (extracted.estado)       data.estado       = extracted.estado;
 
-    // Query para búsqueda — todo lo que venga después de "busca(r)"
     if (intent === 'buscar' && !data.query) {
-      const queryMatch = cleanText.match(/busca(?:r|me)?\s+(.+)/i);
-      if (queryMatch) data.query = queryMatch[1].trim();
+      const qm = cleanText.match(/busca(?:r|me)?\s+(.+)/i);
+      if (qm) data.query = qm[1].trim();
+    }
+
+    // ── Saludo especial de Valk antes de ejecutar ─────────────────────────
+    if (authorIsValk) {
+      await message.channel.send(VALK_SALUDO()).catch(() => {});
     }
 
     // ── Iniciar flujo ─────────────────────────────────────────────────────
@@ -1284,9 +1360,6 @@ module.exports = {
     });
 
     if (!result) return;
-
-    // Marcar como manejado ANTES de responder para que suaMention no lo toque
-    markHandled(message.id);
 
     if (!result.done && result.nextStep) {
       setSession(message.author.id, { intent, step: result.nextStep, data, guildId: message.guildId, channelId: message.channelId });
