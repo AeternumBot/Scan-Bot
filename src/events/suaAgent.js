@@ -2176,11 +2176,14 @@ async function flowTicketLista(step, data, message) {
 const ROLES_RECLU = { traductor: 'Traductor', cleaner: 'Cleaner / Redibujador', typesetter: 'Typesetter', qc: 'Control de Calidad (QC)', otro: 'Otro' };
 
 async function flowReclutarPostular(step, data, message) {
+  // Check de canal en TODOS los pasos — incluyendo sesiones activas
   const canalRecluId = process.env.RECRUIT_CHANNEL_READER_ID;
   if (canalRecluId && message.channelId !== canalRecluId) {
+    // Si había sesión, la cancelamos para no dejar al usuario colgado
+    clearSession(message.author.id);
     return { reply: pick([
-      `E-eh... este proceso solo funciona en el canal de reclutamiento ${K.timida()} ¡Búscalo y escríbeme allí!`,
-      `N-no puedo procesar tu postulación aquí ${K.tranqui()} Ve al canal de reclutamiento e inténtalo allí.`,
+      `E-eh... el proceso de postulación solo funciona en <#${canalRecluId}> ${K.timida()} ¡Escríbeme allí!`,
+      `N-no puedo procesar tu postulación desde aquí ${K.tranqui()} Ve a <#${canalRecluId}> e inténtalo de nuevo.`,
     ]), done: true };
   }
 

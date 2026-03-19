@@ -168,13 +168,13 @@ async function execute(interaction) {
   if (sub === 'rol')          return handleRol(interaction);
   if (sub === 'verificar')    return handleVerificar(interaction);
   if (sub === 'avisos')       return handleAvisos(interaction);
-  if (sub === 'tareas')       return handleCanalEnv(interaction, 'TASKS_CHANNEL_ID', 'tareas y alertas');
-  if (sub === 'registros')    return handleCanalEnv(interaction, 'RECORDS_CHANNEL_ID', 'registros generales');
-  if (sub === 'ausencias')    return handleCanalEnv(interaction, 'ABSENCES_CHANNEL_ID', 'ausencias');
-  if (sub === 'tickets')      return handleCanalEnv(interaction, 'RECRUIT_CHANNEL_READER_ID', 'tickets de error');
-  if (sub === 'reclutamiento')return handleCanalEnv(interaction, 'RECRUIT_CHANNEL_READER_ID', 'reclutamiento');
-  if (sub === 'estancado')    return handleEstancado(interaction);
-  if (sub === 'info')         return handleInfo(interaction);
+  if (sub === 'tareas')        return handleCanalEnv(interaction, 'TASKS_CHANNEL_ID',            'tareas y alertas');
+  if (sub === 'registros')     return handleCanalEnv(interaction, 'RECORDS_CHANNEL_ID',           'registros generales');
+  if (sub === 'ausencias')     return handleCanalEnv(interaction, 'ABSENCES_CHANNEL_ID',          'ausencias');
+  if (sub === 'tickets')       return handleCanalEnv(interaction, 'TICKET_CHANNEL_READER_ID',     'tickets de error (lectores)');
+  if (sub === 'reclutamiento') return handleCanalEnv(interaction, 'RECRUIT_CHANNEL_READER_ID',    'reclutamiento (lectores)');
+  if (sub === 'estancado')     return handleEstancado(interaction);
+  if (sub === 'info')          return handleInfo(interaction);
 }
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
@@ -200,11 +200,26 @@ async function handleCanal(interaction) {
   // Canal global
   process.env.ANNOUNCEMENT_CHANNEL_ID = canal.id;
 
-  // Nota: para persistir entre reinicios hay que escribir en .env manualmente
+  // Intentar persistir en .env
+  let persistido = false;
+  try {
+    const fs = require('fs'), path = require('path');
+    const envPath = path.resolve(process.cwd(), '.env');
+    if (fs.existsSync(envPath)) {
+      let c = fs.readFileSync(envPath, 'utf8');
+      const rx = /^ANNOUNCEMENT_CHANNEL_ID=.*$/m;
+      c = rx.test(c) ? c.replace(rx, `ANNOUNCEMENT_CHANNEL_ID=${canal.id}`) : c + `\nANNOUNCEMENT_CHANNEL_ID=${canal.id}`;
+      fs.writeFileSync(envPath, c, 'utf8');
+      persistido = true;
+    }
+  } catch { /* no crítico */ }
+
   const embed = new EmbedBuilder()
     .setColor(COLORS.success)
     .setTitle('✅ Canal de anuncios actualizado')
-    .setDescription(`Los anuncios se publicarán en ${canal}.\n\n⚠️ Para que este cambio persista al reiniciar el bot, actualiza \`ANNOUNCEMENT_CHANNEL_ID\` en tu archivo \`.env\`.`)
+    .setDescription(persistido
+      ? `Los anuncios se publicarán en ${canal}. El cambio fue guardado en \`.env\` y persistirá al reiniciar.`
+      : `Los anuncios se publicarán en ${canal}.\n\n⚠️ No pude escribir en el \`.env\`. Actualiza \`ANNOUNCEMENT_CHANNEL_ID=${canal.id}\` manualmente.`)
     .setTimestamp();
 
   return interaction.reply({ embeds: [embed], ephemeral: true });
@@ -282,17 +297,29 @@ async function handleVerificar(interaction) {
 }
 
 async function handleAvisos(interaction) {
-  const canal  = interaction.options.getChannel('canal');
+  const canal   = interaction.options.getChannel('canal');
   const esStaff = interaction.guildId === process.env.DISCORD_GUILD_ID;
+  const envKey  = esStaff ? 'STAFF_NOTICE_ID' : 'NOTICE_CHANNEL_ID';
 
-  if (esStaff) {
-    process.env.STAFF_NOTICE_ID = canal.id;
-  } else {
-    process.env.NOTICE_CHANNEL_ID = canal.id;
-  }
+  process.env[envKey] = canal.id;
+
+  let persistido = false;
+  try {
+    const fs = require('fs'), path = require('path');
+    const envPath = path.resolve(process.cwd(), '.env');
+    if (fs.existsSync(envPath)) {
+      let c = fs.readFileSync(envPath, 'utf8');
+      const rx = new RegExp(`^${envKey}=.*$`, 'm');
+      c = rx.test(c) ? c.replace(rx, `${envKey}=${canal.id}`) : c + `\n${envKey}=${canal.id}`;
+      fs.writeFileSync(envPath, c, 'utf8');
+      persistido = true;
+    }
+  } catch { /* no crítico */ }
 
   await interaction.reply({
-    content: `✅ Canal de avisos actualizado a ${canal}.\n\n⚠️ Para que persista al reiniciar el bot, actualiza \`${esStaff ? 'STAFF_NOTICE_ID' : 'NOTICE_CHANNEL_ID'}\` en tu archivo \`.env\`.`,
+    content: persistido
+      ? `✅ Canal de avisos actualizado a ${canal} y guardado en \`.env\`.`
+      : `✅ Canal de avisos actualizado a ${canal}.\n\n⚠️ Actualiza \`${envKey}=${canal.id}\` en tu \`.env\` manualmente.`,
     ephemeral: true,
   });
 }
@@ -300,42 +327,46 @@ async function handleAvisos(interaction) {
 async function handleInfo(interaction) {
   const projects = Projects.list();
   const active   = projects.filter(p => p.active).length;
-  const channel  = process.env.ANNOUNCEMENT_CHANNEL_ID
-    ? `<#${process.env.ANNOUNCEMENT_CHANNEL_ID}>`
-    : 'No configurado';
 
-  const noticeStaff  = process.env.STAFF_NOTICE_ID      ? `<#${process.env.STAFF_NOTICE_ID}>`      : 'No configurado';
-  const noticeReader = process.env.NOTICE_CHANNEL_ID   ? `<#${process.env.NOTICE_CHANNEL_ID}>`   : 'No configurado';
-  const canalTareas  = process.env.TASKS_CHANNEL_ID    ? `<#${process.env.TASKS_CHANNEL_ID}>`    : 'No configurado';
-  const canalRegistros = process.env.RECORDS_CHANNEL_ID? `<#${process.env.RECORDS_CHANNEL_ID}>` : 'No configurado';
-  const canalAusencias = process.env.ABSENCES_CHANNEL_ID?`<#${process.env.ABSENCES_CHANNEL_ID}>`:'No configurado';
-  const canalReclu   = process.env.RECRUIT_CHANNEL_READER_ID ? `<#${process.env.RECRUIT_CHANNEL_READER_ID}>` : 'No configurado';
+  const fmt = id => id ? `<#${id}>` : '`No configurado`';
+
+  const channel        = fmt(process.env.ANNOUNCEMENT_CHANNEL_ID);
+  const noticeStaff    = fmt(process.env.STAFF_NOTICE_ID);
+  const noticeReader   = fmt(process.env.NOTICE_CHANNEL_ID);
+  const canalTareas    = fmt(process.env.TASKS_CHANNEL_ID);
+  const canalRegistros = fmt(process.env.RECORDS_CHANNEL_ID);
+  const canalAusencias = fmt(process.env.ABSENCES_CHANNEL_ID);
+  const canalTickets   = fmt(process.env.TICKET_CHANNEL_READER_ID);
+  const canalReclu     = fmt(process.env.RECRUIT_CHANNEL_READER_ID);
 
   const embed = new EmbedBuilder()
     .setColor(COLORS.info)
     .setTitle('⚙️ Configuración del bot')
     .addFields(
-      { name: '📢 Canal de anuncios',       value: channel,          inline: true },
-      { name: '📋 Proyectos totales',        value: String(projects.length), inline: true },
-      { name: '✅ Proyectos activos',        value: String(active),   inline: true },
-      { name: '📣 Avisos (staff)',           value: noticeStaff,      inline: true },
-      { name: '📣 Avisos (lectores)',        value: noticeReader,     inline: true },
-      { name: '📋 Tareas y alertas',         value: canalTareas,      inline: true },
-      { name: '📁 Registros',               value: canalRegistros,   inline: true },
-      { name: '🏖️ Ausencias',              value: canalAusencias,   inline: true },
-      { name: '🎫 Reclutamiento',           value: canalReclu,       inline: true },
-      { name: '⏱️ Intervalo de check',       value: `Cada ${process.env.CHECK_INTERVAL_MINUTES || 25} minutos`, inline: true },
-      { name: '🕐 Zona horaria',             value: process.env.TIMEZONE || 'America/Bogota', inline: true },
-      { name: '📦 Node.js',                  value: process.version,  inline: true },
+      { name: '📢 Anuncios',          value: channel,        inline: true },
+      { name: '📣 Avisos staff',      value: noticeStaff,    inline: true },
+      { name: '📣 Avisos lectores',   value: noticeReader,   inline: true },
+      { name: '📋 Tareas y alertas',  value: canalTareas,    inline: true },
+      { name: '📁 Registros',         value: canalRegistros, inline: true },
+      { name: '🏖️ Ausencias',        value: canalAusencias, inline: true },
+      { name: '🎫 Tickets (lectores)',value: canalTickets,   inline: true },
+      { name: '📋 Reclutamiento',     value: canalReclu,     inline: true },
+      { name: '📊 Proyectos',         value: `${projects.length} total · ${active} activos`, inline: true },
+      { name: '⏱️ Check interval',    value: `Cada ${process.env.CHECK_INTERVAL_MINUTES || 25} min`, inline: true },
+      { name: '🕐 Zona horaria',      value: process.env.TIMEZONE || 'America/Bogota', inline: true },
+      { name: '📦 Node.js',           value: process.version, inline: true },
     )
     .addFields({
       name: '🔧 Comandos disponibles',
       value:
         '`/proyecto add/remove/list/info/toggle/setstatus`\n' +
         '`/status [proyecto]`\n' +
-        '`/configurar canal/reacciones/rol/avisos/verificar/info`\n' +
-        '`/buscar <nombre> <fuente>`\n' +
-        '`/anunciar <proyecto>`',
+        '`/configurar canal/reacciones/rol/avisos/tareas/registros/ausencias/tickets/reclutamiento/estancado/verificar/info`\n' +
+        '`/tarea asignar/completar/lista/eliminar`\n' +
+        '`/ausencia pedir/registrar/cancelar/lista`\n' +
+        '`/ticket abrir/cerrar/lista`\n' +
+        '`/reclutar postular/cerrar/lista`\n' +
+        '`/buscar <nombre> <fuente>` · `/anunciar` · `/avisar` · `/salud`',
     })
     .setTimestamp();
 
@@ -345,11 +376,33 @@ async function handleInfo(interaction) {
 // ── Handler genérico para canales de entorno ─────────────────────────────────
 async function handleCanalEnv(interaction, envKey, label) {
   const canal = interaction.options.getChannel('canal');
-  process.env[envKey] = canal.id;
-  await interaction.reply({
-    content: `✅ Canal de **${label}** actualizado a ${canal}.
 
-⚠️ Para que persista al reiniciar el bot, actualiza \`${envKey}\` en tu archivo \`.env\`.`,
+  // Actualizar en memoria
+  process.env[envKey] = canal.id;
+
+  // Intentar persistir en el archivo .env
+  let persistido = false;
+  try {
+    const fs   = require('fs');
+    const path = require('path');
+    const envPath = path.resolve(process.cwd(), '.env');
+    if (fs.existsSync(envPath)) {
+      let envContent = fs.readFileSync(envPath, 'utf8');
+      const regex = new RegExp(`^${envKey}=.*$`, 'm');
+      if (regex.test(envContent)) {
+        envContent = envContent.replace(regex, `${envKey}=${canal.id}`);
+      } else {
+        envContent += `\n${envKey}=${canal.id}`;
+      }
+      fs.writeFileSync(envPath, envContent, 'utf8');
+      persistido = true;
+    }
+  } catch { /* si falla, no es crítico */ }
+
+  await interaction.reply({
+    content: persistido
+      ? `✅ Canal de **${label}** actualizado a ${canal} y guardado en \`.env\` ${persistido ? '(persistirá al reiniciar)' : ''}`
+      : `✅ Canal de **${label}** actualizado a ${canal}.\n\n⚠️ No pude escribir en el \`.env\` automáticamente. Actualiza \`${envKey}=${canal.id}\` manualmente para que persista al reiniciar.`,
     ephemeral: true,
   });
 }
