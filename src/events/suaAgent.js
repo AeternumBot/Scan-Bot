@@ -187,6 +187,9 @@ function detectIntent(text) {
   // ── Buscar ───────────────────────────────────────────────────────────────
   if (/busca(r|me)?\b|search\b|encuentra(r)?\b|existe.{0,8}en (tmo|colorcito)|esta.{0,8}en (tmo|colorcito)/.test(t)) return 'buscar';
 
+  // ── Configurar ───────────────────────────────────────────────────────────
+  if (/configura(r)?\b|configuracion\b|ajustes?\b|settings?\b/.test(t)) return 'configurar';
+
   // ── Detección dinámica por nombre de proyecto ────────────────────────────
   // Si el mensaje menciona el nombre de un proyecto conocido + verbo de acción,
   // se infiere la intención sin necesidad de decir "proyecto"
@@ -1450,6 +1453,275 @@ async function execBuscar(data, message) {
   return { embeds: [embed], done: true };
 }
 
+// ── configurar ───────────────────────────────────────────────────────────────
+async function flowConfigurar(step, data, message) {
+  function clean(t) { return t.replace(/<@!?\d+>/g, '').trim(); }
+  function esSaltar(t) { return /^(no|saltar|skip|ninguno?|-)$/i.test(clean(t)); }
+
+  // Menú principal — preguntar qué quiere configurar
+  const MENU = [
+    '`canal` — cambiar el canal de anuncios (global o por proyecto)',
+    '`reacciones` — emojis de reacción de un proyecto',
+    '`rol` — rol de ping de un proyecto en el servidor de lectores',
+    '`avisos` — canal donde se publican los avisos oficiales',
+    '`verificar` — forzar una revisión de capítulos ahora mismo',
+    '`info` — ver la configuración actual del bot',
+  ].join('\n');
+
+  if (step === 'start') {
+    // Si ya dijo qué en el mismo mensaje (ej: "@Sua configura el canal")
+    const t = normalize(clean(message.content));
+    if (/canal\b/.test(t))       { data.sub = 'canal';      return continueConfigurar(data, message); }
+    if (/reaccione?s?\b/.test(t)){ data.sub = 'reacciones'; return continueConfigurar(data, message); }
+    if (/\brol\b/.test(t))       { data.sub = 'rol';        return continueConfigurar(data, message); }
+    if (/aviso/.test(t))          { data.sub = 'avisos';     return continueConfigurar(data, message); }
+    if (/verifica(r)?\b/.test(t)){ data.sub = 'verificar';  return continueConfigurar(data, message); }
+    if (/info\b/.test(t))        { data.sub = 'info';       return continueConfigurar(data, message); }
+
+    return {
+      reply: pick([
+        `¿Qué quieres configurar? ${K.tranqui()} Dime una opción:\n\n${MENU}`,
+        `Claro, ¿qué ajuste necesitas? ${K.feliz()} Estas son las opciones:\n\n${MENU}`,
+        `E-eh, ¿qué configuramos? ${K.timida()} Dime cuál:\n\n${MENU}`,
+      ]),
+      nextStep: 'awaitSub',
+    };
+  }
+
+  if (step === 'awaitSub') {
+    const t = normalize(clean(message.content));
+    if (/canal\b/.test(t))        data.sub = 'canal';
+    else if (/reaccione?s?\b/.test(t)) data.sub = 'reacciones';
+    else if (/\brol\b/.test(t))  data.sub = 'rol';
+    else if (/aviso/.test(t))      data.sub = 'avisos';
+    else if (/verifica(r)?\b/.test(t)) data.sub = 'verificar';
+    else if (/info\b/.test(t))    data.sub = 'info';
+    else return { reply: `No reconocí esa opción ${K.disculpa()} Las opciones son: \`canal\`, \`reacciones\`, \`rol\`, \`avisos\`, \`verificar\`, \`info\`` };
+    return continueConfigurar(data, message);
+  }
+
+  // ── Steps por sub ────────────────────────────────────────────────────────
+  if (step === 'awaitCanalGlobal') {
+    const t = clean(message.content);
+    const chMatch = t.match(/<#(\d+)>/);
+    data.canalId = chMatch ? chMatch[1] : t;
+    data.proyectoId = null;
+    return execConfigurar(data, message);
+  }
+  if (step === 'awaitCanalProyecto') {
+    const t = clean(message.content);
+    // ¿Es un canal o un "no" (= canal global)?
+    if (esSaltar(t)) {
+      data.proyectoId = null;
+      return { reply: `Entendido, lo pondré global. ¿En qué canal? Menciona el canal con # ${K.tranqui()}`, nextStep: 'awaitCanalGlobal' };
+    }
+    const chMatch = t.match(/<#(\d+)>/);
+    data.canalId = chMatch ? chMatch[1] : t;
+    return execConfigurar(data, message);
+  }
+  if (step === 'awaitProyectoReacc') {
+    const t = clean(message.content);
+    let p = Projects.get(t);
+    if (!p) p = getProjects().find(pr => normalize(pr.name).includes(normalize(t)));
+    if (!p) return { reply: `No encontré ese proyecto ${K.disculpa()} Dame el ID exacto.` };
+    data.proyectoId = p.id;
+    return { reply: `¿Qué emojis le pongo? Sepáralos con espacios ${K.tranqui()} (ej: ❤️ 🔥 👏)`, nextStep: 'awaitEmojis' };
+  }
+  if (step === 'awaitEmojis') {
+    data.emojis = clean(message.content);
+    return execConfigurar(data, message);
+  }
+  if (step === 'awaitProyectoRol') {
+    const t = clean(message.content);
+    let p = Projects.get(t);
+    if (!p) p = getProjects().find(pr => normalize(pr.name).includes(normalize(t)));
+    if (!p) return { reply: `No encontré ese proyecto ${K.disculpa()} Dame el ID exacto.` };
+    data.proyectoId = p.id;
+    return { reply: `¿Cuál es el ID del rol en el servidor de lectores? ${K.tranqui()} (clic derecho en el rol → Copiar ID)`, nextStep: 'awaitRolId' };
+  }
+  if (step === 'awaitRolId') {
+    const t = clean(message.content);
+    if (esSaltar(t)) { data.rolId = null; return execConfigurar(data, message); }
+    if (!/^\d{17,20}$/.test(t)) return { reply: `Ese ID no parece válido ${K.disculpa()} Debe ser solo números (17-20 dígitos). Activa el Modo Desarrollador si no lo ves.` };
+    data.rolId = t;
+    return execConfigurar(data, message);
+  }
+  if (step === 'awaitCanalAvisos') {
+    const t = clean(message.content);
+    const chMatch = t.match(/<#(\d+)>/);
+    data.canalId = chMatch ? chMatch[1] : t;
+    return execConfigurar(data, message);
+  }
+  if (step === 'awaitProyectoCanal') {
+    const t = clean(message.content);
+    if (esSaltar(t)) {
+      data.proyectoId = null;
+      return { reply: `Bien, canal global. ¿En cuál canal? Menciónalo con # ${K.tranqui()}`, nextStep: 'awaitCanalGlobal' };
+    }
+    let p = Projects.get(t);
+    if (!p) p = getProjects().find(pr => normalize(pr.name).includes(normalize(t)));
+    if (!p) return { reply: `No encontré ese proyecto ${K.disculpa()} Dame el ID o di **no** para canal global.` };
+    data.proyectoId = p.id;
+    return { reply: `¿En qué canal anuncio **${p.name}**? Menciónalo con # ${K.tranqui()}`, nextStep: 'awaitCanalProyecto' };
+  }
+}
+
+async function continueConfigurar(data, message) {
+  const { sub } = data;
+
+  if (sub === 'canal') {
+    if (!('proyectoId' in data)) {
+      const lista = getProjects().map(p => `\`${p.id}\``).join(', ');
+      return {
+        reply: pick([
+          `¿Es para un proyecto específico o el canal global? ${K.tranqui()} Dame el ID del proyecto o di **no** para global.\nProyectos: ${lista}`,
+          `¿Para qué proyecto configuro el canal? ${K.timida()} Escribe el ID o **no** para el canal global.\nProyectos: ${lista}`,
+        ]),
+        nextStep: 'awaitProyectoCanal',
+      };
+    }
+    if (!data.canalId) {
+      return { reply: `¿En qué canal publico los anuncios? Menciónalo con # ${K.tranqui()}`, nextStep: 'awaitCanalGlobal' };
+    }
+    return execConfigurar(data, message);
+  }
+
+  if (sub === 'reacciones') {
+    if (!data.proyectoId) {
+      const lista = getProjects().map(p => `\`${p.id}\``).join(', ');
+      return { reply: `¿A cuál proyecto le configuro las reacciones? ${K.tranqui()} Proyectos: ${lista}`, nextStep: 'awaitProyectoReacc' };
+    }
+    if (!data.emojis) {
+      return { reply: `¿Qué emojis le pongo? Sepáralos con espacios ${K.tranqui()} (ej: ❤️ 🔥 👏)`, nextStep: 'awaitEmojis' };
+    }
+    return execConfigurar(data, message);
+  }
+
+  if (sub === 'rol') {
+    if (!data.proyectoId) {
+      const lista = getProjects().map(p => `\`${p.id}\``).join(', ');
+      return { reply: `¿A cuál proyecto le asigno el rol? ${K.tranqui()} Proyectos: ${lista}`, nextStep: 'awaitProyectoRol' };
+    }
+    if (!('rolId' in data)) {
+      return { reply: `¿Cuál es el ID del rol en el servidor de lectores? ${K.tranqui()} (clic derecho → Copiar ID)`, nextStep: 'awaitRolId' };
+    }
+    return execConfigurar(data, message);
+  }
+
+  if (sub === 'avisos') {
+    if (!data.canalId) {
+      return { reply: `¿En qué canal publico los avisos? Menciónalo con # ${K.tranqui()}`, nextStep: 'awaitCanalAvisos' };
+    }
+    return execConfigurar(data, message);
+  }
+
+  if (sub === 'verificar' || sub === 'info') {
+    return execConfigurar(data, message);
+  }
+}
+
+async function execConfigurar(data, message) {
+  const { sub } = data;
+  const guild  = message.guild;
+  const client = message.client;
+
+  // ── canal ────────────────────────────────────────────────────────────────
+  if (sub === 'canal') {
+    if (data.proyectoId) {
+      const p = Projects.get(data.proyectoId);
+      if (!p) return { reply: SUA.proyecto.noEncontrado(data.proyectoId), done: true };
+      p.announcementChannel = data.canalId;
+      Projects.save(p);
+      return { reply: `✅ Canal de **${p.name}** actualizado a <#${data.canalId}> ${K.feliz()}`, done: true };
+    }
+    process.env.ANNOUNCEMENT_CHANNEL_ID = data.canalId;
+    return { reply: `✅ Canal de anuncios global actualizado a <#${data.canalId}> ${K.feliz()}\n⚠️ Para que persista al reiniciar, actualiza \`ANNOUNCEMENT_CHANNEL_ID\` en tu \`.env\`.`, done: true };
+  }
+
+  // ── reacciones ───────────────────────────────────────────────────────────
+  if (sub === 'reacciones') {
+    const p = Projects.get(data.proyectoId);
+    if (!p) return { reply: SUA.proyecto.noEncontrado(data.proyectoId), done: true };
+    const emojiRegex = /(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F|<a?:\w+:\d+>)/gu;
+    const emojis = data.emojis.match(emojiRegex) || [];
+    if (!emojis.length) return { reply: `No detecté emojis válidos ${K.disculpa()} Usa emojis estándar o custom del servidor.`, done: true };
+    p.reactions = emojis;
+    Projects.save(p);
+    return { reply: `✅ Reacciones de **${p.name}** actualizadas: ${emojis.join(' ')} ${K.feliz()}`, done: true };
+  }
+
+  // ── rol ──────────────────────────────────────────────────────────────────
+  if (sub === 'rol') {
+    const p = Projects.get(data.proyectoId);
+    if (!p) return { reply: SUA.proyecto.noEncontrado(data.proyectoId), done: true };
+    p.readerRoleId = data.rolId || null;
+    Projects.save(p);
+    return {
+      reply: data.rolId
+        ? `✅ Rol de ping de **${p.name}** actualizado al ID \`${data.rolId}\` ${K.feliz()}`
+        : `✅ Rol de ping de **${p.name}** eliminado ${K.tranqui()}`,
+      done: true,
+    };
+  }
+
+  // ── avisos ───────────────────────────────────────────────────────────────
+  if (sub === 'avisos') {
+    const esStaff = message.guildId === process.env.DISCORD_GUILD_ID;
+    if (esStaff) process.env.STAFF_NOTICE_ID  = data.canalId;
+    else         process.env.NOTICE_CHANNEL_ID = data.canalId;
+    return {
+      reply: `✅ Canal de avisos actualizado a <#${data.canalId}> ${K.feliz()}\n⚠️ Para que persista, actualiza \`${esStaff ? 'STAFF_NOTICE_ID' : 'NOTICE_CHANNEL_ID'}\` en tu \`.env\`.`,
+      done: true,
+    };
+  }
+
+  // ── verificar ────────────────────────────────────────────────────────────
+  if (sub === 'verificar') {
+    await message.channel.send(pick([
+      `Iniciando verificación manual... ${K.tranqui()} Dame un momento.`,
+      `Voy a revisar si hay capítulos nuevos ahora mismo ${K.feliz()}`,
+      `E-eh, revisando todo con cuidado... ${K.timida()} ya vuelvo.`,
+    ]));
+    try {
+      await monitor().forceCheck(client);
+      return { reply: pick([
+        `✅ Verificación completada ${K.feliz()} Si había algo nuevo, ya lo publiqué.`,
+        `¡Lista! ${K.feliz()} Revisé todo. Si hay novedades, ya están en el canal de anuncios.`,
+        `Listo, revisé todo ${K.tranqui()} Nada se me escapó.`,
+      ]), done: true };
+    } catch (err) {
+      return { reply: `A-ay... algo salió mal durante la verificación ${K.triste()} \`${err.message}\``, done: true };
+    }
+  }
+
+  // ── info ─────────────────────────────────────────────────────────────────
+  if (sub === 'info') {
+    const projects = Projects.list();
+    const active   = projects.filter(p => p.active).length;
+    const channel  = process.env.ANNOUNCEMENT_CHANNEL_ID ? `<#${process.env.ANNOUNCEMENT_CHANNEL_ID}>` : 'No configurado';
+    const noticeS  = process.env.STAFF_NOTICE_ID   ? `<#${process.env.STAFF_NOTICE_ID}>`   : 'No configurado';
+    const noticeR  = process.env.NOTICE_CHANNEL_ID ? `<#${process.env.NOTICE_CHANNEL_ID}>` : 'No configurado';
+
+    const { EmbedBuilder: EB } = require('discord.js');
+    const embed = new EB()
+      .setTitle('⚙️ Configuración actual')
+      .setColor(0x9b59b6)
+      .addFields(
+        { name: '📢 Canal de anuncios',  value: channel,                                                    inline: true },
+        { name: '📋 Proyectos',          value: `${projects.length} total · ${active} activos`,             inline: true },
+        { name: '📣 Avisos staff',       value: noticeS,                                                    inline: true },
+        { name: '📣 Avisos lectores',    value: noticeR,                                                    inline: true },
+        { name: '⏱️ Check interval',     value: `Cada ${process.env.CHECK_INTERVAL_MINUTES || 25} min`,    inline: true },
+        { name: '🕐 Zona horaria',       value: process.env.TIMEZONE || 'America/Bogota',                  inline: true },
+        { name: '📦 Node.js',            value: process.version,                                            inline: true },
+      )
+      .setTimestamp();
+    return { embeds: [embed], done: true };
+  }
+
+  return { reply: SUA.errorGeneral, done: true };
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // ROUTER PRINCIPAL
 // ────────────────────────────────────────────────────────────────────────────
@@ -1470,6 +1742,7 @@ async function routeIntent(intent, step, data, message) {
   if (intent === 'salud')             return flowSalud(message);
   if (intent === 'sincronizar')       return flowSincronizar(data, message);
   if (intent === 'buscar')            return flowBuscar(step, data, message);
+  if (intent === 'configurar')        return flowConfigurar(step, data, message);
   return null;
 }
 
@@ -1622,7 +1895,7 @@ module.exports = {
     // ── Verificar permisos por intención ──────────────────────────────────
     const needsMod     = intent.startsWith('mod.');
     const needsAnnounce= ['anunciar','avisar'].includes(intent);
-    const needsManage  = intent.startsWith('proyecto.') || intent === 'sincronizar';
+    const needsManage  = intent.startsWith('proyecto.') || intent === 'sincronizar' || intent === 'configurar';
 
     if (needsMod     && !canMod)                                                    return message.reply(SUA.sinPermisos).catch(() => {});
     if (needsAnnounce&& !canAnnounce)                                               return message.reply(SUA.sinPermisos).catch(() => {});
