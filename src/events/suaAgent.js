@@ -689,53 +689,266 @@ async function flowProyectoList() {
 
 // ── anunciar ──────────────────────────────────────────────────────────────────
 async function flowAnunciar(step, data, message) {
+  // ── Helpers de parsing de créditos ────────────────────────────────────────
+  function parsearCreditos(texto) {
+    // Acepta: "Trad: @Juan, Clean: @Ana" o IDs sueltos separados por coma
+    const menciones = [...texto.matchAll(/<@!?(\d+)>/g)].map(m => m[1]);
+    return menciones.length ? menciones.join(',') : texto.trim() || null;
+  }
+  function esSaltar(t) {
+    return /^(no|saltar|skip|ninguno?|-)$/i.test(t.replace(/<@!?\d+>/g, '').trim());
+  }
+
   if (step === 'start') {
     if (!data.proyectoId) {
-      const lista = Projects.list().map(p => `\`${p.id}\``).join(', ');
-      return { reply: `¿De cuál proyecto anuncio un capítulo? ${K.feliz()} IDs: ${lista}`, nextStep: 'awaitProyecto' };
+      const lista = getProjects().map(p => `**${p.name}** \`${p.id}\``).join('\n');
+      return { reply: `¿De cuál proyecto anuncio un capítulo? ${K.feliz()}\n${lista}`, nextStep: 'awaitProyecto' };
     }
-    if (!data.capitulo) {
-      return { reply: `¿Qué número de capítulo anuncio? ${K.tranqui()}`, nextStep: 'awaitCapitulo' };
-    }
-    return execAnunciar(data, message);
+    return continueAnunciar(data, message);
   }
+
   if (step === 'awaitProyecto') {
     const t = message.content.replace(/<@!?\d+>/g, '').trim();
-    const p = Projects.get(t);
-    if (!p) return { reply: `No encontré el proyecto \`${t}\`... ¿el ID está bien? ${K.disculpa()}` };
-    data.proyectoId = t;
-    return { reply: `¿Qué número de capítulo anuncio de **${p.name}**? ${K.tranqui()}`, nextStep: 'awaitCapitulo' };
+    // Buscar por ID exacto o por nombre aproximado
+    let p = Projects.get(t);
+    if (!p) p = getProjects().find(pr => normalize(pr.name).includes(normalize(t)) || normalize(pr.id).includes(normalize(t)));
+    if (!p) return { reply: `No encontré ese proyecto... ¿puedes darme el ID exacto? ${K.disculpa()}` };
+    data.proyectoId = p.id;
+    return continueAnunciar(data, message);
   }
+
   if (step === 'awaitCapitulo') {
     const capMatch = message.content.match(/(\d+(?:[.,]\d+)?)/);
-    if (!capMatch) return { reply: `No entendí el número de capítulo... ¿puedes repetirlo? ${K.disculpa()}` };
+    if (!capMatch) return { reply: `No entendí el número... escríbelo así: \`12\` o \`12.5\` ${K.disculpa()}` };
     data.capitulo = capMatch[1];
+    return continueAnunciar(data, message);
+  }
+
+  if (step === 'awaitMensaje') {
+    if (!esSaltar(message.content)) {
+      data.mensajePersonalizado = message.content.replace(/<@!?\d+>/g, '').trim();
+    }
+    return continueAnunciar(data, message);
+  }
+
+  if (step === 'awaitPortada') {
+    const t = message.content.replace(/<@!?\d+>/g, '').trim();
+    if (!esSaltar(t)) {
+      const urlMatch = t.match(/(https?:\/\/[^\s]+)/);
+      data.portadaUrl = urlMatch ? urlMatch[1] : null;
+    }
+    return continueAnunciar(data, message);
+  }
+
+  if (step === 'awaitFuente') {
+    const t = normalize(message.content);
+    if (t.includes('tmo') && !t.includes('color'))      data.fuente = 'tmo';
+    else if (t.includes('color'))                        data.fuente = 'colorcito';
+    else                                                 data.fuente = 'ambas';
+    return continueAnunciar(data, message);
+  }
+
+  if (step === 'awaitTmoLink') {
+    const t = message.content.replace(/<@!?\d+>/g, '').trim();
+    if (!esSaltar(t)) {
+      const urlMatch = t.match(/(https?:\/\/[^\s]+)/);
+      data.tmoLink = urlMatch ? urlMatch[1] : null;
+    }
+    return continueAnunciar(data, message);
+  }
+
+  if (step === 'awaitTraductores') {
+    if (!esSaltar(message.content)) data.traductores = parsearCreditos(message.content);
+    return continueAnunciar(data, message);
+  }
+  if (step === 'awaitCleaners') {
+    if (!esSaltar(message.content)) data.cleaners = parsearCreditos(message.content);
+    return continueAnunciar(data, message);
+  }
+  if (step === 'awaitTypeos') {
+    if (!esSaltar(message.content)) data.typeos = parsearCreditos(message.content);
+    return continueAnunciar(data, message);
+  }
+  if (step === 'awaitOtros') {
+    if (!esSaltar(message.content)) data.otros = parsearCreditos(message.content);
     return execAnunciar(data, message);
   }
 }
+
+// Lógica de avance: pide lo que falte en orden
+async function continueAnunciar(data, message) {
+  const p = Projects.get(data.proyectoId);
+
+  if (!data.capitulo) {
+    return {
+      reply: `¿Qué número de capítulo anuncio de **${p?.name}**? ${K.tranqui()}`,
+      nextStep: 'awaitCapitulo',
+    };
+  }
+  if (!('mensajePersonalizado' in data)) {
+    return {
+      reply: pick([
+        `¿Quieres agregar un mensaje personalizado? ${K.tranqui()} Escríbelo o di **no** para saltar.`,
+        `¿Algún mensaje especial para este capítulo? ${K.timida()} Puedes escribirlo o poner **no**.`,
+        `¿Le pongo algún texto extra al anuncio? ${K.tranqui()} Escribe el mensaje o **no** para omitir.`,
+      ]),
+      nextStep: 'awaitMensaje',
+    };
+  }
+  if (!('portadaUrl' in data)) {
+    return {
+      reply: pick([
+        `¿Tienes una URL de portada para este capítulo? ${K.tranqui()} Pégala o di **no**.`,
+        `¿Quieres una imagen de portada personalizada? ${K.timida()} Dame la URL o escribe **no**.`,
+        `¿La portada tiene URL directa? ${K.tranqui()} Si sí, pégala aquí. Si no, **no**.`,
+      ]),
+      nextStep: 'awaitPortada',
+    };
+  }
+  // Solo preguntar fuente si el proyecto tiene ambas
+  if (!data.fuente && p?.sources?.tmo && p?.sources?.colorcito) {
+    return {
+      reply: `¿En qué plataforma anuncio? **TMO**, **Colorcito** o **ambas** ${K.tranqui()}`,
+      nextStep: 'awaitFuente',
+    };
+  }
+  if (!data.fuente) data.fuente = 'ambas';
+
+  // Solo preguntar link TMO si aplica
+  const necesitaTmo = (data.fuente === 'tmo' || data.fuente === 'ambas') && p?.sources?.tmo;
+  if (necesitaTmo && !('tmoLink' in data)) {
+    return {
+      reply: pick([
+        `¿Tienes el link directo al capítulo en TMO? ${K.tranqui()} Pégalo o di **no** para que yo lo busque.`,
+        `¿Quieres poner un link específico de TMO? ${K.timida()} Si no, dime **no** y lo detecto automático.`,
+      ]),
+      nextStep: 'awaitTmoLink',
+    };
+  }
+
+  // Créditos
+  if (!('traductores' in data)) {
+    return {
+      reply: pick([
+        `¿Quién tradujo este capítulo? ${K.feliz()} Menciona a los usuarios o di **no**.`,
+        `¿Los traductores de este cap? ${K.tranqui()} Mencionálos o escribe **no** para omitir.`,
+      ]),
+      nextStep: 'awaitTraductores',
+    };
+  }
+  if (!('cleaners' in data)) {
+    return {
+      reply: pick([
+        `¿Y los cleaners? ${K.tranqui()} Mencionálos o di **no**.`,
+        `¿Quién hizo el clean? ${K.feliz()} Menciona a los responsables o **no**.`,
+      ]),
+      nextStep: 'awaitCleaners',
+    };
+  }
+  if (!('typeos' in data)) {
+    return {
+      reply: pick([
+        `¿Los typesetters/typeos? ${K.tranqui()} Mencionálos o di **no**.`,
+        `¿Quién hizo el typeo final? ${K.feliz()} Menciónalo o **no** para saltar.`,
+      ]),
+      nextStep: 'awaitTypeos',
+    };
+  }
+  if (!('otros' in data)) {
+    return {
+      reply: pick([
+        `¿Alguien más que quieras mencionar? ${K.tranqui()} (QC, redibujador...) Di **no** si no.`,
+        `¿Hay algún otro colaborador? ${K.feliz()} Menciónalo o di **no**.`,
+      ]),
+      nextStep: 'awaitOtros',
+    };
+  }
+
+  return execAnunciar(data, message);
+}
+
 async function execAnunciar(data, message) {
   const p = Projects.get(data.proyectoId);
   if (!p) return { reply: SUA.proyecto.noEncontrado(data.proyectoId), done: true };
   const channelId = p.announcementChannel || process.env.ANNOUNCEMENT_CHANNEL_ID;
   if (!channelId) return { reply: SUA.anunciar.sinCanal, done: true };
 
-  let chapterUrlTmo = null, chapterUrlColor = null;
+  // URLs de capítulo
+  let chapterUrlTmo = data.tmoLink || null;
+  let chapterUrlColor = null;
+  let isEcchi = false;
+
+  const fuenteOpt = data.fuente || 'ambas';
   await Promise.all([
-    p.sources?.tmo ? tmo().getLatestChapter(p.sources.tmo).then(d => { if (d) chapterUrlTmo = d.chapterUrl; }).catch(() => {}) : null,
-    p.sources?.colorcito ? colorcito().getLatestChapter(p.sources.colorcito).then(d => { if (d) chapterUrlColor = d.chapterUrl; }).catch(() => {}) : null,
+    (!chapterUrlTmo && (fuenteOpt === 'tmo' || fuenteOpt === 'ambas') && p.sources?.tmo)
+      ? tmo().getLatestChapter(p.sources.tmo).then(d => { if (d) chapterUrlTmo = d.chapterUrl; }).catch(() => {})
+      : null,
+    ((fuenteOpt === 'colorcito' || fuenteOpt === 'ambas') && p.sources?.colorcito)
+      ? colorcito().getLatestChapter(p.sources.colorcito).then(d => {
+          if (d) { chapterUrlColor = d.chapterUrl; if (d.isEcchi) isEcchi = true; }
+        }).catch(() => {})
+      : null,
   ].filter(Boolean));
 
   const chapData = {
-    chapterNum:  data.capitulo,
+    chapterNum:   data.capitulo,
     chapterTitle: null,
-    chapterUrl:  chapterUrlTmo || chapterUrlColor || null,
-    thumbnail:   p.thumbnail || null,
-    urlTmo:      chapterUrlTmo || null,
+    chapterUrl:   chapterUrlTmo || chapterUrlColor || null,
+    thumbnail:    data.portadaUrl || p.thumbnail || null,
+    urlTmo:       chapterUrlTmo  || null,
     urlColorcito: p.sources?.colorcito || chapterUrlColor || null,
   };
 
+  // Construir créditos
+  function idsToMentions(raw) {
+    if (!raw) return null;
+    return raw.split(',').map(id => id.trim())
+      .filter(id => /^\d{17,20}$/.test(id))
+      .map(id => `<@${id}>`).join(' ');
+  }
+  const credits = [];
+  const mencTrad   = idsToMentions(data.traductores);
+  const mencClean  = idsToMentions(data.cleaners);
+  const mencTypeo  = idsToMentions(data.typeos);
+  const mencOtros  = idsToMentions(data.otros);
+  if (mencTrad)  credits.push(`📝 **Traducción:** ${mencTrad}`);
+  if (mencClean) credits.push(`🧹 **Clean:** ${mencClean}`);
+  if (mencTypeo) credits.push(`✏️ **Typeo/Final:** ${mencTypeo}`);
+  if (mencOtros) credits.push(`🌟 **Otros:** ${mencOtros}`);
+  if (!credits.length && p.defaultCredits) credits.push(p.defaultCredits);
+
+  // Nota ecchi (mismas frases del comando original)
+  const ECCHI_FRASES = [
+    'S-s-sua no aprueba este capítulo... p-pero aquí está (〃>_<;〃)',
+    'V-valk... ¿en serio me haces anunciar esto? (〃>_<;〃) Está bien... aquí va.',
+    '¡V-valk! Yo no pedí trabajar en este scan para esto... (//∇//) pero bueno.',
+    'E-esto fue idea de Valk, no mía. Yo solo soy la mensajera inocente (〃ω〃)',
+    'Valk me dijo que anunciara esto con una sonrisa... (〃>_<;〃) no puedo.',
+    'A-ay... este capítulo es un poco... ya saben. Sua se tapa los ojos (//>/<//)',
+    'Sua deja esto aquí y se va sin mirar... (*ノωノ)',
+    'E-este... es un capítulo especial. Sua no dice nada más (//∇//)',
+    '...Sua miró sin querer y ahora está muy roja. Disfruten (*ノωノ)',
+    'S-sua no sabe nada de este capítulo. Nada. No lo vio. (〃>_<;〃)',
+    'E-el equipo puso mucho cariño aquí... y otras cosas. Sua no dice más (//∇//)',
+    'S-sua tiene valores. Sua también tiene trabajo. El trabajo ganó hoy (/ω＼)',
+  ];
+  if (!global._ecchiUsadas) global._ecchiUsadas = [];
+  const disponibles = ECCHI_FRASES.filter(f => !global._ecchiUsadas.includes(f));
+  const pool  = disponibles.length >= 5 ? disponibles : ECCHI_FRASES;
+  const frase = pool[Math.floor(Math.random() * pool.length)];
+  if (isEcchi) {
+    global._ecchiUsadas.push(frase);
+    if (global._ecchiUsadas.length > 5) global._ecchiUsadas.shift();
+  }
+
+  const ecchiNote    = isEcchi ? ('\n\n*' + frase + '*') : '';
+  const mensajeFinal = ((data.mensajePersonalizado || '') + ecchiNote).trim() || null;
+
   const msg = await announcer().sendManualAnnouncement(message.client, p, chapData, {
-    customMessage: null, imageUrl: null, credits: [], extraRoles: [],
+    customMessage: mensajeFinal,
+    imageUrl:      data.portadaUrl || null,
+    credits,
+    extraRoles:    [],
   }).catch(() => null);
 
   if (!msg) return { reply: SUA.anunciar.errorEnvio, done: true };
@@ -744,30 +957,102 @@ async function execAnunciar(data, message) {
 
 // ── avisar ────────────────────────────────────────────────────────────────────
 async function flowAvisar(step, data, message) {
+  function clean(t) { return t.replace(/<@!?\d+>/g, '').trim(); }
+  function esSaltar(t) { return /^(no|saltar|skip|ninguno?|-)$/i.test(clean(t)); }
+
   if (step === 'start') {
     if (!data.titulo) {
-      return { reply: `¿Cuál es el título del aviso? ${K.tranqui()}`, nextStep: 'awaitTitulo' };
+      return {
+        reply: pick([
+          `¿Cuál es el título del aviso? ${K.tranqui()} (ej: "📢 Comunicado importante")`,
+          `¿Con qué título publico el aviso? ${K.feliz()} Puedes incluir un emoji si quieres.`,
+          `Dame el título del aviso ${K.tranqui()} Por ejemplo: "🔔 Actualización del scan"`,
+        ]),
+        nextStep: 'awaitTitulo',
+      };
     }
-    if (!data.mensaje) {
-      return { reply: `Ahora escribe el cuerpo del aviso ${K.tranqui()}`, nextStep: 'awaitMensaje' };
-    }
-    return execAvisar(data, message);
+    return continueAvisar(data, message);
   }
+
   if (step === 'awaitTitulo') {
-    data.titulo = message.content.replace(/<@!?\d+>/g, '').trim();
-    return { reply: `Perfecto. Ahora el cuerpo del aviso ${K.tranqui()}`, nextStep: 'awaitMensaje' };
+    data.titulo = clean(message.content);
+    return continueAvisar(data, message);
   }
   if (step === 'awaitMensaje') {
-    data.mensaje = message.content.replace(/<@!?\d+>/g, '').trim();
+    data.mensaje = clean(message.content).replace(/\\n/g, '\n');
+    return continueAvisar(data, message);
+  }
+  if (step === 'awaitPing') {
+    const t = normalize(message.content);
+    if (t.includes('here'))         data.ping = 'here';
+    else if (t.includes('no') || t.includes('ninguno') || t.includes('sin')) data.ping = 'none';
+    else                            data.ping = 'everyone';
+    return continueAvisar(data, message);
+  }
+  if (step === 'awaitFirma') {
+    const t = clean(message.content);
+    if (!esSaltar(t)) data.firma = t;
+    return continueAvisar(data, message);
+  }
+  if (step === 'awaitImagen') {
+    const t = clean(message.content);
+    if (!esSaltar(t)) {
+      const urlMatch = t.match(/(https?:\/\/[^\s]+)/);
+      data.imagen = urlMatch ? urlMatch[1] : null;
+    }
     return execAvisar(data, message);
   }
 }
+
+async function continueAvisar(data, message) {
+  if (!data.mensaje) {
+    return {
+      reply: pick([
+        `Perfecto. Ahora escribe el cuerpo del aviso ${K.tranqui()} (usa \\n para saltos de línea)`,
+        `¡Buen título! Ahora el texto del aviso ${K.feliz()} Puedes usar \\n para párrafos nuevos.`,
+        `E-entendido. ¿Qué dice el aviso? ${K.timida()} Escribe el mensaje completo.`,
+      ]),
+      nextStep: 'awaitMensaje',
+    };
+  }
+  if (!('ping' in data)) {
+    return {
+      reply: pick([
+        `¿A quién menciono? **@everyone**, **@here** o **no** para publicar sin mención ${K.tranqui()}`,
+        `¿Le pongo mención? Escribe **everyone**, **here** o **no** ${K.timida()}`,
+        `¿Notifico a alguien? **everyone**, **here** o **no** para sin mención ${K.tranqui()}`,
+      ]),
+      nextStep: 'awaitPing',
+    };
+  }
+  if (!('firma' in data)) {
+    return {
+      reply: pick([
+        `¿Quieres cambiar la firma? Por defecto es *"Líder del equipo de Aeternum Translations."* ${K.tranqui()} Escribe la nueva o di **no**.`,
+        `¿Firma personalizada? La predeterminada es *"Líder del equipo de Aeternum Translations."* ${K.timida()} Escribe una o **no** para usar la default.`,
+      ]),
+      nextStep: 'awaitFirma',
+    };
+  }
+  if (!('imagen' in data)) {
+    return {
+      reply: pick([
+        `¿Quieres adjuntar una imagen? ${K.tranqui()} Pega la URL directa o di **no**.`,
+        `¿Le pongo alguna imagen al aviso? ${K.feliz()} Dame la URL o di **no** para omitirla.`,
+        `¿Imagen adjunta? ${K.timida()} Pega el link o escribe **no**.`,
+      ]),
+      nextStep: 'awaitImagen',
+    };
+  }
+  return execAvisar(data, message);
+}
+
 async function execAvisar(data, message) {
-  const STAFF_GUILD_ID  = process.env.DISCORD_GUILD_ID;
-  const STAFF_NOTICE_ID = process.env.STAFF_NOTICE_ID  || '1368814037743177789';
+  const STAFF_GUILD_ID   = process.env.DISCORD_GUILD_ID;
+  const STAFF_NOTICE_ID  = process.env.STAFF_NOTICE_ID || '1368814037743177789';
   const READER_NOTICE_ID = process.env.NOTICE_CHANNEL_ID;
-  const esStaff = message.guildId === STAFF_GUILD_ID;
-  const channelId = esStaff ? STAFF_NOTICE_ID : READER_NOTICE_ID;
+  const esStaff    = message.guildId === STAFF_GUILD_ID;
+  const channelId  = esStaff ? STAFF_NOTICE_ID : READER_NOTICE_ID;
   if (!channelId) return { reply: SUA.avisar.sinCanal, done: true };
 
   let channel = null;
@@ -781,15 +1066,28 @@ async function execAvisar(data, message) {
   } catch { }
   if (!channel) return { reply: SUA.avisar.sinCanal, done: true };
 
-  const content = [
-    '@everyone', '',
-    `## ${data.titulo}`, '',
-    data.mensaje, '',
-    `Atentamente,`,
-    `**Líder del equipo de Aeternum Translations.**`,
-  ].join('\n');
+  const pingOpt = data.ping || 'everyone';
+  const firma   = data.firma || 'Líder del equipo de Aeternum Translations.';
 
-  await channel.send({ content, allowedMentions: { parse: ['everyone'] } });
+  const lines = [];
+  if (pingOpt === 'everyone') lines.push('@everyone');
+  else if (pingOpt === 'here') lines.push('@here');
+  lines.push('');
+  lines.push(`## ${data.titulo}`);
+  lines.push('');
+  lines.push(data.mensaje);
+  lines.push('');
+  lines.push('Atentamente,');
+  lines.push(`**${firma}**`);
+
+  const msgContent = lines.join('\n');
+  const allowedMentions = { parse: [] };
+  if (pingOpt !== 'none') allowedMentions.parse.push('everyone');
+
+  const payload = { content: msgContent, allowedMentions };
+  if (data.imagen) payload.files = [{ attachment: data.imagen, name: 'imagen.jpg' }];
+
+  await channel.send(payload);
   return { reply: SUA.avisar.publicado, done: true };
 }
 
