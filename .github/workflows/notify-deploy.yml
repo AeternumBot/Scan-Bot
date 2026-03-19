@@ -1,0 +1,59 @@
+name: Notificar Deploy a Sua
+
+on:
+  push:
+    branches: [main]
+  workflow_run:
+    workflows: ["*"]
+    types: [completed]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Obtener info del commit
+        id: info
+        run: |
+          echo "sha_short=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+          echo "message=$(echo '${{ github.event.head_commit.message }}' | head -1)" >> $GITHUB_OUTPUT
+          echo "author=${{ github.event.head_commit.author.name }}" >> $GITHUB_OUTPUT
+
+      - name: Notificar deploy exitoso a Sua
+        if: success()
+        run: |
+          curl -X POST "${{ secrets.SUA_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -H "x-railway-signature: sha256=$(echo -n '{"status":"SUCCESS","type":"deploy"}' | openssl dgst -sha256 -hmac '${{ secrets.SUA_WEBHOOK_SECRET }}' | cut -d' ' -f2)" \
+            -d '{
+              "status": "SUCCESS",
+              "type": "deploy",
+              "project": { "name": "Sua Bot" },
+              "environment": { "name": "produccion" },
+              "deployment": {
+                "meta": {
+                  "commitMessage": "${{ steps.info.outputs.message }}",
+                  "commitHash": "${{ steps.info.outputs.sha_short }}",
+                  "commitAuthor": "${{ steps.info.outputs.author }}"
+                }
+              }
+            }'
+
+      - name: Notificar deploy fallido a Sua
+        if: failure()
+        run: |
+          curl -X POST "${{ secrets.SUA_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -H "x-railway-signature: sha256=$(echo -n '{"status":"FAILED","type":"deploy"}' | openssl dgst -sha256 -hmac '${{ secrets.SUA_WEBHOOK_SECRET }}' | cut -d' ' -f2)" \
+            -d '{
+              "status": "FAILED",
+              "type": "deploy",
+              "project": { "name": "Sua Bot" },
+              "environment": { "name": "produccion" },
+              "deployment": {
+                "meta": {
+                  "commitMessage": "${{ steps.info.outputs.message }}",
+                  "commitHash": "${{ steps.info.outputs.sha_short }}",
+                  "commitAuthor": "${{ steps.info.outputs.author }}"
+                }
+              }
+            }'
