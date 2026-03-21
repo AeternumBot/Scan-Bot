@@ -254,9 +254,13 @@ function extractFromMessage(text, mentions) {
   const capMatch = text.match(/cap(?:itulo)?\.?\s*(\d+(?:[.,]\d+)?)/i);
   if (capMatch) extracted.capitulo = capMatch[1];
 
-  // URL
-  const urlMatch = text.match(/(https?:\/\/[^\s]+)/);
-  if (urlMatch) extracted.url = urlMatch[1];
+  // URLs — separar TMO vs Colorcito para proyecto.add
+  const allUrls = [...text.matchAll(/(https?:\/\/[^\s]+)/g)].map(m => m[1].replace(/[)>.,]+$/, ''));
+  if (allUrls.length) extracted.url = allUrls[0];
+  const tmoUrlMatch   = allUrls.find(u => /lectortmo|zonatmo|tumangaonline/i.test(u));
+  const colorUrlMatch = allUrls.find(u => /colorcito/i.test(u));
+  if (tmoUrlMatch)   extracted.tmoUrl   = tmoUrlMatch;
+  if (colorUrlMatch) extracted.colorUrl = colorUrlMatch;
 
   // Rol de staff — nombre o key
   for (const [key, info] of Object.entries(STAFF_ROLES)) {
@@ -499,12 +503,20 @@ async function flowProyectoAdd(step, data, message) {
   }
   if (step === 'awaitUrls') {
     const t = message.content;
-    const tmoMatch   = t.match(/(https?:\/\/(?:www\.)?tumangaonline\.[^\s]+)/i);
-    const colorMatch = t.match(/(https?:\/\/(?:www\.)?colorcito\.[^\s]+)/i);
-    if (tmoMatch)   data.tmoUrl   = tmoMatch[1];
-    if (colorMatch) data.colorUrl = colorMatch[1];
+    // TMO: lectortmo.com, zonatmo.com, tumangaonline.com y variantes
+    const tmoMatch   = t.match(/(https?:\/\/[^\s]*(?:lectortmo|zonatmo|tumangaonline)[^\s]*)/i);
+    // Colorcito: colorcito.com, colorcitoscan.com y variantes
+    const colorMatch = t.match(/(https?:\/\/[^\s]*colorcito[^\s]*)/i);
+    if (tmoMatch)   data.tmoUrl   = tmoMatch[1].replace(/[)>.,]+$/, ''); // limpiar trailing chars
+    if (colorMatch) data.colorUrl = colorMatch[1].replace(/[)>.,]+$/, '');
     if (!data.tmoUrl && !data.colorUrl) {
-      return { reply: `Necesito al menos una URL (TMO o Colorcito) ${K.disculpa()} Pégala aquí.` };
+      return {
+        reply: pick([
+          `Mmm... no reconocí esa URL ${K.disculpa()} Necesito un link de TMO (lectortmo.com) o Colorcito (colorcito.com). ¿Lo intentas de nuevo?`,
+          `E-esa URL no la reconocí... ${K.timida()} Pega el link directo de TMO o Colorcito, por favor.`,
+          `N-no pude leer ese link ${K.disculpa()} Asegúrate de que sea de lectortmo.com o colorcito.com.`,
+        ]),
+      };
     }
     return execProyectoAdd(data, message);
   }
@@ -2699,6 +2711,8 @@ module.exports = {
     if (extracted.nombre)       data.nombre       = extracted.nombre;
     if (extracted.proyectoId)   data.proyectoId   = extracted.proyectoId;
     if (extracted.estado)       data.estado       = extracted.estado;
+    if (extracted.tmoUrl)       data.tmoUrl       = extracted.tmoUrl;
+    if (extracted.colorUrl)     data.colorUrl     = extracted.colorUrl;
 
     if (intent === 'buscar' && !data.query) {
       const qm = cleanText.match(/busca(?:r|me)?\s+(.+)/i);
