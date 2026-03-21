@@ -2614,11 +2614,12 @@ module.exports = {
   wasHandled,
   name: Events.MessageCreate,
   async execute(message) {
-    if (message.author.bot) return;
-    if (!message.member)    return; // fuera de servidor
+    if (message.author.bot)        return;
+    if (!message.member)           return; // fuera de servidor
+    if (message.mentions.everyone) return; // ignorar @everyone y @here
 
     const clientId    = message.client.user.id;
-    const isMentioned = message.mentions.has(clientId);
+    const isMentioned = message.mentions.has(clientId, { ignoreEveryone: true });
     const session     = getSession(message.author.id);
 
     // Si no hay sesión activa Y no fue mencionada, ignorar
