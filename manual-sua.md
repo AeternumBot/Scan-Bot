@@ -90,9 +90,11 @@ Muestra el progreso de los capítulos en Google Drive: cuántos tienen Clean, Tr
 ```
 @Sua cómo van los proyectos
 @Sua status de solo-leveling
-@Sua revisa el progreso de Solo Leveling
+@Sua revisa el estatus de Solo Leveling
 @Sua qué tienen en Drive
+@Sua en qué van con La Joven Rebelde
 ```
+> 💡 Puedes decir el nombre completo del proyecto directamente — Sua lo reconoce aunque no digas la palabra "proyecto".
 
 ---
 
@@ -120,8 +122,10 @@ Solo moderadores (rol Mod).
 @Sua expulsa a @Juan
 @Sua dale el rol de Traductor a @Juan
 @Sua quítale el rol de Cleaner a @Juan
+@Sua saca a @Juan del servidor
 ```
 > ⚠️ Si intentas moderar a Valk, Sua se negará sin importar quién lo pida.
+> ⚠️ Para acciones destructivas (ban/expulsión), Sua siempre pedirá confirmación con **sí** o **no** antes de ejecutar.
 
 ---
 
@@ -204,13 +208,16 @@ Busca un manga por nombre en las plataformas para obtener la URL antes de agrega
 ```
 @Sua busca Solo Leveling en TMO
 @Sua existe Tower of God en Colorcito
+@Sua busca Tower of God
 ```
 
 ---
 
 ### `/salud` — Diagnóstico del bot
 
-Sua se autodiagnostica: conexión con Discord, variables configuradas, conexión con Google Drive, scrapers de TMO y Colorcito.
+Sua se autodiagnostica y te da un reporte completo en embed con color dinámico (🟢 todo bien / 🟡 advertencias / 🔴 errores).
+
+Revisa: conexión Discord (latencia), uso de RAM, uptime, versión de Node, variables de entorno obligatorias y opcionales, conexión con Google Drive, scrapers de TMO y Colorcito probados en vivo, canales configurados, y estado de cada proyecto (sin canal, sin fuentes, sin Drive, sin portada).
 
 **Uso con slash:**
 ```
@@ -222,7 +229,9 @@ Sua se autodiagnostica: conexión con Discord, variables configuradas, conexión
 @Sua cómo estás tú
 @Sua diagnóstico
 @Sua todo bien contigo
+@Sua estás bien
 ```
+> 💡 Sua manda un aviso previo antes de responder porque los scrapers pueden tardar hasta 8 segundos.
 
 ---
 
@@ -231,17 +240,11 @@ Solo admins (permiso Gestionar Servidor).
 
 | Subcomando | Qué hace |
 |---|---|
-| `canal` | Canal de anuncios global o por proyecto |
-| `reacciones` | Reacciones de un proyecto específico |
-| `rol` | Rol de ping de un proyecto para el servidor de lectores |
-| `avisos` | Canal donde `/avisar` publica |
-| `tareas` | Canal de recordatorios de tareas |
-| `registros` | Canal de logs generales de Sua |
-| `ausencias` | Canal donde se publican las ausencias activas |
-| `tickets` | Canal donde los lectores reportan errores |
-| `reclutamiento` | Canal donde los lectores se postulan |
-| `estancado` | Días de inactividad antes de alertar por capítulo estancado |
-| `verificar` | Fuerza una verificación de capítulos ahora mismo |
+| `canal` | Canal de anuncios (global o por proyecto) |
+| `reacciones` | Emojis de reacción de un proyecto |
+| `rol` | Rol de ping de un proyecto en el servidor de lectores |
+| `avisos` | Canal donde `/avisar` publica los avisos oficiales |
+| `verificar` | Fuerza una revisión de capítulos ahora mismo |
 | `info` | Muestra toda la configuración actual del bot |
 
 **Uso con slash:**
@@ -251,12 +254,21 @@ Solo admins (permiso Gestionar Servidor).
 /configurar canal canal: #solo-leveling proyecto: solo-leveling
 /configurar reacciones proyecto: solo-leveling emojis: ⚔️ 💀 🔥
 /configurar rol proyecto: solo-leveling rol_id: 1234567890
-/configurar tareas canal: #tareas-y-alertas
-/configurar estancado proyecto: solo-leveling dias: 7
+/configurar avisos canal: #noticias
 /configurar verificar
 ```
 
-> ⚠️ Los cambios de canal intentan guardarse automáticamente en el `.env`. Si no pueden (en Railway sin acceso al archivo), te dice el valor para que lo copies manualmente en las variables de entorno.
+**Uso con el agente:**
+```
+@Sua configura                          → Sua muestra el menú con las 6 opciones
+@Sua configura el canal de anuncios
+@Sua cambia las reacciones de Solo Leveling
+@Sua configura el rol de ping de solo-leveling
+@Sua configura los avisos
+@Sua verifica los capítulos ahora
+@Sua muéstrame la configuración actual
+```
+> ⚠️ Los cambios de canal se guardan en memoria. En Railway, siempre actualiza las variables directamente en el panel para que persistan al reiniciar.
 
 ---
 
@@ -279,8 +291,9 @@ Publica el anuncio de un nuevo capítulo en el canal configurado. Incluye títul
 ```
 @Sua anuncia el cap 180 de solo-leveling
 @Sua publica el capítulo 45 de Solo Leveling
+@Sua anuncia
 ```
-> ⚠️ El agente irá pidiendo los datos que falten (créditos, portada, etc.).
+> ⚠️ El agente pide todos los datos paso a paso: proyecto, número de cap, mensaje personalizado, portada, fuente, link de TMO, traductores, cleaners, typeos y otros. Di **no** en cualquier campo opcional para saltarlo.
 
 ---
 
@@ -299,7 +312,9 @@ Publica un aviso formal en el canal de noticias. Desde el servidor de staff va a
 @Sua publica un aviso
 @Sua manda un comunicado oficial
 @Sua haz un anuncio
+@Sua avisa
 ```
+> ⚠️ El agente pide todos los datos: título, cuerpo del mensaje, a quién mencionar (everyone/here/no), firma y si quieres imagen. Di **no** para saltarte cualquier campo opcional.
 
 ---
 
@@ -399,46 +414,103 @@ Los **lectores** se postulan desde el canal de reclutamiento. Sua recopila sus d
 
 ## 🤖 CÓMO FUNCIONA EL AGENTE
 
+El agente es el sistema que le permite a Sua entender lenguaje natural y ejecutar acciones reales sin necesidad de comandos slash. Funciona detectando la intención del mensaje, extrayendo los datos que ya se dieron y preguntando paso a paso solo lo que falta.
+
 ### Reglas básicas
 
-- Siempre hay que **mencionar a Sua** (`@Sua`) para que responda
-- Si Sua te está haciendo preguntas y quieres cancelar, escribe `cancelar` o `stop`
-- Las sesiones tienen un tiempo límite de **5 minutos** de inactividad. Si no respondes, la sesión se cierra sola
-- Si no reconoce lo que le dices, lo delega a su modo conversacional (respuestas de personalidad) — eso significa que no entendió la intención como un comando
+- Siempre hay que **mencionar a Sua** (`@Sua`) para activar el agente
+- Si Sua ya te está haciendo preguntas dentro de un flujo, **no necesitas mencionarla de nuevo** — simplemente responde
+- Para cancelar en cualquier momento, escribe `cancelar` o `stop`
+- Las sesiones tienen un tiempo límite de **5 minutos** de inactividad. Si no respondes en ese tiempo, la sesión se cierra sola y hay que empezar de nuevo
+- Si Sua no entiende una instrucción como comando, la trata como conversación normal (respuestas de personalidad). Si eso pasa, intenta reformular o usa el slash directamente
 
-### Lo que SÍ entiende bien
+### Cómo funciona por dentro
 
-El agente detecta intenciones por palabras clave. Estas frases funcionan de forma garantizada:
+Cuando mencionas a Sua, el agente hace tres cosas en orden:
 
-| Intención | Frases que funcionan |
+1. **Detecta la intención** — analiza el texto buscando palabras clave y patrones de frases naturales
+2. **Extrae los datos del mensaje** — si ya dijiste el proyecto, el usuario mencionado, el número de capítulo, etc., los toma directamente del mensaje sin preguntar de nuevo
+3. **Completa lo que falta** — pregunta uno por uno los datos obligatorios que no se pudieron extraer
+
+Esto significa que puedes dar varios datos en el mismo mensaje y Sua los aprovecha todos. Por ejemplo:
+
+```
+@Sua banea a @Juan por spam          → Sua ya tiene el target y la razón, solo pide confirmación
+@Sua anuncia el cap 12 de Solo Leveling → Sua ya tiene proyecto y capítulo, pregunta lo demás
+@Sua configura el canal de anuncios  → Sua ya sabe que es "canal", pregunta directamente cuál
+```
+
+### Detección por nombre de proyecto
+
+Una función importante del agente: **reconoce los nombres de los proyectos registrados directamente en el mensaje**, sin que digas la palabra "proyecto". Si dices:
+
+```
+@Sua revisa el estatus de La Joven Rebelde
+@Sua anuncia Solo Leveling
+@Sua cómo va Tower of God
+```
+
+Sua busca en la lista de proyectos registrados, encuentra la coincidencia y ejecuta la acción correcta. Esto también funciona con los IDs (`solo-leveling`, `la-joven-rebelde`, etc.).
+
+> 💡 Cuando agregas o eliminas un proyecto, Sua actualiza su lista interna automáticamente — no hace falta reiniciar el bot.
+
+### Confirmaciones para acciones destructivas
+
+Para **banear**, **expulsar** y **eliminar proyectos**, Sua siempre pide confirmación antes de ejecutar. La respuesta debe ser exactamente **sí** o **no**. Cualquier otra cosa se trata como un no y cancela la acción.
+
+### Lo que SÍ entiende bien (frases garantizadas)
+
+| Intención | Ejemplos que funcionan |
 |---|---|
-| Agregar proyecto | `agrega el proyecto`, `registra el proyecto`, `nuevo proyecto` |
-| Ver proyectos | `lista los proyectos`, `qué proyectos tienes`, `todos los proyectos` |
-| Ver estado | `status`, `cómo van`, `progreso de`, `qué tienen en Drive` |
-| Anunciar | `anuncia`, `publica el cap`, `saca el capítulo` |
-| Avisar | `publica un aviso`, `comunicado oficial`, `manda un aviso` |
-| Banear | `banea a`, `ban a` |
-| Expulsar | `expulsa a`, `kick a`, `saca del servidor a` |
-| Dar rol | `dale el rol de`, `asígnale el rol de` |
-| Quitar rol | `quítale el rol de` |
-| Asignar tarea | `asígnale una tarea a`, `dale la traducción del cap X a` |
-| Completar tarea | `ya terminé la tarea`, `marcar tarea como lista` |
-| Ver tareas | `ver tareas activas`, `tareas pendientes` |
-| Pedir ausencia | `voy a estar ausente`, `me voy de viaje`, `ausencia` |
-| Cancelar ausencia | `ya volví`, `estoy de vuelta`, `regresé` |
-| Ver ausencias | `quiénes están ausentes`, `ausencias activas` |
-| Reportar error | `hay un error en el cap`, `el cap no carga`, `páginas desordenadas` |
-| Postularse | `quiero unirme`, `quiero postularme`, `quiero ser traductor` |
-| Diagnóstico | `cómo estás tú`, `diagnóstico`, `todo bien contigo` |
-| Buscar | `busca X en TMO`, `existe X en Colorcito` |
-| Sincronizar | `sincroniza`, `actualiza caché` |
+| **Agregar proyecto** | `agrega el proyecto`, `registra el proyecto`, `nuevo proyecto`, `añade el proyecto` |
+| **Eliminar proyecto** | `elimina el proyecto X`, `borra el proyecto X` |
+| **Toggle activo** | `activa el proyecto X`, `pausa el proyecto X`, `desactiva X` |
+| **Cambiar estado** | `pon X en hiatus`, `cambia el estado de X`, `X está completado` |
+| **Ver info proyecto** | `info del proyecto X`, `detalles de X`, `X` *(solo el nombre)* |
+| **Ver todos los proyectos** | `lista los proyectos`, `qué proyectos tienes`, `todos los proyectos` |
+| **Ver estado/Drive** | `status`, `estatus`, `cómo van`, `revisa el estatus de X`, `en qué van con X`, `qué tienen en Drive` |
+| **Anunciar cap** | `anuncia`, `publica el cap`, `saca el capítulo`, `anuncia el cap X de Y` |
+| **Publicar aviso** | `publica un aviso`, `comunicado oficial`, `manda un aviso`, `haz un anuncio`, `avisa` |
+| **Banear** | `banea a @X`, `ban a @X`, `banea a @X por Y` |
+| **Expulsar** | `expulsa a @X`, `kick a @X`, `echa a @X`, `saca a @X del servidor` |
+| **Dar rol** | `dale el rol de X a @Y`, `asígnale el rol de X a @Y`, `ponle X a @Y` |
+| **Quitar rol** | `quítale el rol de X a @Y`, `saca el rol de X a @Y` |
+| **Asignar tarea** | `asígnale una tarea a @X`, `dale la traducción del cap X a @Y` |
+| **Completar tarea** | `ya terminé la tarea`, `marcar tarea como lista` |
+| **Ver tareas** | `ver tareas activas`, `tareas pendientes`, `tareas de @X` |
+| **Pedir ausencia** | `voy a estar ausente hasta X`, `me voy de viaje`, `ausencia hasta X` |
+| **Cancelar ausencia** | `ya volví`, `estoy de vuelta`, `regresé` |
+| **Ver ausencias** | `quiénes están ausentes`, `ausencias activas` |
+| **Reportar error** | `hay un error en el cap X`, `el cap X no carga`, `páginas desordenadas` |
+| **Postularse** | `quiero unirme al equipo`, `me quiero postular`, `quiero ser traductor` |
+| **Diagnóstico** | `cómo estás tú`, `diagnóstico`, `todo bien contigo`, `salud` |
+| **Buscar** | `busca X en TMO`, `existe X en Colorcito`, `busca X` |
+| **Sincronizar** | `sincroniza`, `actualiza caché`, `sync`, `ponme al día` |
+| **Configurar** | `configura`, `configuración`, `ajustes`, `settings` |
 
 ### Lo que NO entiende bien (usa el slash en cambio)
 
-- Configuraciones complejas con múltiples parámetros → usa `/configurar`
 - Reacciones personalizadas por proyecto → usa `/configurar reacciones`
 - Panel de roles con emojis → usa `/rol`
 - Agregar proyectos con muchos campos opcionales (portada, tags, créditos) → usa `/proyecto add`
+- Cerrar tickets o postulaciones con ID específico → usa el slash directamente
+
+### Personalidad especial de Sua con Valk
+
+Sua tiene comportamientos específicos cuando es Valk quien le habla:
+
+- Al recibir cualquier comando de Valk, Sua lo saluda antes de ejecutar con una frase especial
+- Si alguien intenta banear o expulsar a Valk, Sua se niega rotundamente sin importar quién lo pida
+- Si alguien intenta quitarle roles a Valk, Sua también lo bloquea
+- Si Sua no entiende algo que Valk le dice, le responde en tono diferente — como hablarle a su creador — en vez del mensaje genérico de "no sé responder eso"
+
+### Di "no" para saltarte campos opcionales
+
+En todos los flujos largos (anunciar, avisar, proyecto add), cuando Sua pregunta por campos opcionales puedes responder con cualquiera de estas palabras para saltarlo:
+
+```
+no    saltar    skip    ninguno    -
+```
 
 ---
 
@@ -464,4 +536,7 @@ Los canales de tickets y postulaciones se crean y eliminan automáticamente. No 
 El estado de Drive tiene una caché de 10 minutos. Si acabas de subir algo y no aparece en `/status`, espera un momento o usa `/configurar verificar` para forzar la actualización.
 
 **Sobre el agente y sesiones**
-Si el agente está en medio de una conversación contigo y de repente parece no responder bien, es posible que la sesión se haya cortado por inactividad. Simplemente menciona a Sua de nuevo con la instrucción completa.
+Si el agente está en medio de una conversación contigo y de repente parece no responder bien, es posible que la sesión se haya cortado por inactividad (5 minutos). Simplemente menciona a Sua de nuevo con la instrucción completa para empezar desde cero.
+
+**Sobre la caché de proyectos del agente**
+El agente mantiene una caché interna de proyectos que se actualiza cada 30 segundos. Si acabas de agregar o eliminar un proyecto y el agente parece no reconocerlo todavía, espera unos segundos e intenta de nuevo.

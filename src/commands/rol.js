@@ -222,21 +222,50 @@ async function handleMensaje(interaction) {
     } catch { /* no crítico */ }
   }
 
-  await message.reactions.removeAll().catch(() => {});
+  // ── Sincronización inteligente de reacciones ─────────────────────────────
+  // En vez de borrar todo y volver a reaccionar (lo que hace perder quién reaccionó),
+  // comparamos las reacciones actuales con las que deberían estar y solo
+  // agregamos las que faltan y quitamos las que sobran.
 
-  // Reaccionar con emoji de todas las series primero si existe
-  // (se agrega al final de la lista visual pero primero en reacciones para que salga al final)
   const allReactions = [...rolesData.roles];
   if (rolesData.emojiTodas) {
     allReactions.push({ emoji: rolesData.emojiTodas, roleId: TODAS_ROLE_ID, projectName: 'Todas las series', projectId: '__todas__' });
   }
 
+  // Normalizar emoji para comparar (custom: <:name:id> o <a:name:id>, unicode: 🔥)
+  function normalizeEmoji(e) {
+    if (typeof e === 'string') return e;
+    if (e.id) return `<${e.animated ? 'a' : ''}:${e.name}:${e.id}>`;
+    return e.name;
+  }
+
+  // Emojis que YA están como reacción del bot en el mensaje
+  const emojisDeseados = allReactions.map(r => r.emoji);
+  const reaccionesActuales = message.reactions.cache;
+  const emojisActuales = [];
+  reaccionesActuales.forEach(r => {
+    if (r.me) emojisActuales.push(normalizeEmoji(r.emoji));
+  });
+
+  // Quitar reacciones del bot que ya no deberían estar
+  for (const reaction of reaccionesActuales.values()) {
+    if (!reaction.me) continue;
+    const emojiStr = normalizeEmoji(reaction.emoji);
+    if (!emojisDeseados.includes(emojiStr)) {
+      await reaction.users.remove(message.client.user.id).catch(() => {});
+      await new Promise(res => setTimeout(res, 300));
+    }
+  }
+
+  // Agregar reacciones que faltan manteniendo el orden
   for (const r of allReactions) {
-    try {
-      await message.react(r.emoji);
-      await new Promise(res => setTimeout(res, 500));
-    } catch (err) {
-      await interaction.followUp({ content: `⚠️ No se pudo reaccionar con ${r.emoji}: ${err.message}`, ephemeral: true });
+    if (!emojisActuales.includes(r.emoji)) {
+      try {
+        await message.react(r.emoji);
+        await new Promise(res => setTimeout(res, 500));
+      } catch (err) {
+        await interaction.followUp({ content: `⚠️ No se pudo reaccionar con ${r.emoji}: ${err.message}`, ephemeral: true });
+      }
     }
   }
 
