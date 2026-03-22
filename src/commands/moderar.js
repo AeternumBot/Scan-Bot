@@ -73,7 +73,9 @@ const data = new SlashCommandBuilder()
   );
 
 function hasModeRole(member) {
-  return member.roles.cache.has(MOD_ROLE_ID);
+  return member.roles.cache.has(MOD_ROLE_ID)
+    || member.permissions.has('Administrator')
+    || member.permissions.has('ManageGuild');
 }
 
 async function execute(interaction) {
@@ -89,24 +91,65 @@ async function execute(interaction) {
 }
 
 async function handleKick(interaction) {
-  const usuario = interaction.options.getMember('usuario');
-  const razon   = interaction.options.getString('razon') || 'Sin razón especificada';
+  const razon = interaction.options.getString('razon') || 'Sin razón especificada';
+
+  // Obtener el member del guild correcto (puede ser staff o lectores)
+  let usuario = interaction.options.getMember('usuario');
+  if (!usuario) {
+    // Si no está en el guild actual, intentar en el otro servidor
+    const otroGuildId = interaction.guildId === process.env.DISCORD_GUILD_ID
+      ? process.env.DISCORD_READER_GUILD_ID
+      : process.env.DISCORD_GUILD_ID;
+    if (otroGuildId) {
+      const otroGuild = await interaction.client.guilds.fetch(otroGuildId).catch(() => null);
+      if (otroGuild) {
+        const targetUser = interaction.options.getUser('usuario');
+        usuario = await otroGuild.members.fetch(targetUser?.id).catch(() => null);
+      }
+    }
+  }
+
   if (!usuario) return interaction.editReply(SUA.mod.usuarioNoEncontrado);
   if (!usuario.kickable) return interaction.editReply(SUA.mod.noPuedo);
   try {
     await usuario.kick(razon);
-    await interaction.editReply(SUA.mod.expulsado(usuario.user.username, razon));
+    await interaction.editReply(SUA.mod.expulsado(usuario.user?.username || usuario.user?.tag || 'usuario', razon));
   } catch { await interaction.editReply(SUA.mod.errorAccion('expulsar')); }
 }
 
 async function handleBan(interaction) {
-  const usuario = interaction.options.getMember('usuario');
-  const razon   = interaction.options.getString('razon') || 'Sin razón especificada';
+  const razon = interaction.options.getString('razon') || 'Sin razón especificada';
+
+  // Obtener el member del guild correcto (puede ser staff o lectores)
+  let usuario = interaction.options.getMember('usuario');
+  if (!usuario) {
+    const otroGuildId = interaction.guildId === process.env.DISCORD_GUILD_ID
+      ? process.env.DISCORD_READER_GUILD_ID
+      : process.env.DISCORD_GUILD_ID;
+    if (otroGuildId) {
+      const otroGuild = await interaction.client.guilds.fetch(otroGuildId).catch(() => null);
+      if (otroGuild) {
+        const targetUser = interaction.options.getUser('usuario');
+        usuario = await otroGuild.members.fetch(targetUser?.id).catch(() => null);
+      }
+    }
+  }
+
+  // Si sigue sin encontrarse, intentar ban directo por ID (usuario ya no está en el servidor)
+  const targetUser = interaction.options.getUser('usuario');
+  if (!usuario && targetUser) {
+    try {
+      await interaction.guild.bans.create(targetUser.id, { reason: razon });
+      await interaction.editReply(SUA.mod.baneado(targetUser.username, razon));
+    } catch { await interaction.editReply(SUA.mod.errorAccion('banear')); }
+    return;
+  }
+
   if (!usuario) return interaction.editReply(SUA.mod.usuarioNoEncontrado);
   if (!usuario.bannable) return interaction.editReply(SUA.mod.noPuedo);
   try {
     await usuario.ban({ reason: razon });
-    await interaction.editReply(SUA.mod.baneado(usuario.user.username, razon));
+    await interaction.editReply(SUA.mod.baneado(usuario.user?.username || usuario.user?.tag || 'usuario', razon));
   } catch { await interaction.editReply(SUA.mod.errorAccion('banear')); }
 }
 
