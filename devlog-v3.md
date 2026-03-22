@@ -311,6 +311,27 @@ module.exports = {
 
 ---
 
+### Bug H — Regex de URLs en `proyecto add` no detectaba `lectortmo.com`
+
+**Qué pasó:** El regex en `awaitUrls` buscaba `tumangaonline` como dominio de TMO, pero el dominio real que usa el bot es `lectortmo.com` (y `zonatmo.com` como alternativa). Al pegar un link de `https://lectortmo.com/...`, el regex no hacía match, y Sua respondía "Necesito al menos una URL" en bucle sin importar cuántas veces se pegara el link correcto.
+
+**Solución:** Ampliar el regex para cubrir todos los dominios conocidos de TMO (`lectortmo`, `zonatmo`, `tumangaonline`) y de Colorcito (`colorcito`, `colorcitoscan`). Se añadió también limpieza de caracteres trailing que Discord a veces pega al final de URLs embebidas (`)`, `.`, `>`). El mismo fix se aplicó a `extractFromMessage` para que si el usuario pega la URL en el mismo mensaje donde pide agregar el proyecto, ya quede extraída sin necesitar el paso `awaitUrls`.
+
+---
+
+### Bug I — El agente respondía a mensajes con `@everyone`
+
+**Qué pasó:** Cuando alguien publicaba un anuncio con `@everyone`, Discord marca internamente al bot como mencionado. `message.mentions.has(clientId)` devolvía `true`, el agente procesaba el mensaje como si fuera una mención directa a Sua y respondía. Esto hacía que Sua interrumpiera anuncios publicados manualmente.
+
+**Solución:** Dos cambios de una línea:
+```js
+if (message.mentions.everyone) return; // salir si es @everyone o @here
+const isMentioned = message.mentions.has(clientId, { ignoreEveryone: true }); // no contar everyone como mención directa
+```
+El flag `ignoreEveryone: true` es el mismo que ya usaba `suaMention.js` — simplemente faltaba aplicarlo en el agente.
+
+---
+
 ## 📝 Errores de distracción (sin comentarios)
 
 - `TASKS_CHANNEL_ID` configurado con el ID incorrecto en el `.env` — el canal existía pero no era el que debía ser.
@@ -361,3 +382,5 @@ JavaScript es single-threaded pero los `await` ceden el control del event loop. 
 | Diagnóstico `/salud` con embed | ✅ 7 secciones |
 | Personalidad especial Valk | ✅ Ban/kick/rol protegidos |
 | Doble respuesta agent+mention | ✅ Resuelto con markHandled |
+| URLs de TMO en proyecto add   | ✅ Regex corregido (lectortmo/zonatmo) |
+| Respuesta a @everyone         | ✅ Guard mentions.everyone |
