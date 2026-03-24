@@ -15,6 +15,39 @@ const {
 const { Projects } = require('../utils/storage');
 const { COLORS, REACTIONS } = require('../../config/config');
 const monitor = require('../services/monitor');
+const fs   = require('fs-extra');
+const path = require('path');
+
+// ── Config persistente ────────────────────────────────────────────────────────
+// En Railway no hay .env en disco, así que guardamos los cambios de canal
+// en data/bot_config.json y los leemos con prioridad sobre process.env
+const BOT_CONFIG_FILE = './data/bot_config.json';
+
+function loadBotConfig() {
+  try {
+    if (fs.existsSync(BOT_CONFIG_FILE)) return fs.readJsonSync(BOT_CONFIG_FILE);
+  } catch { }
+  return {};
+}
+
+function saveBotConfig(key, value) {
+  fs.ensureDirSync('./data');
+  const cfg = loadBotConfig();
+  cfg[key] = value;
+  fs.writeJsonSync(BOT_CONFIG_FILE, cfg, { spaces: 2 });
+  // También actualizar process.env para que surta efecto inmediato
+  process.env[key] = value;
+}
+
+// Llamar esto al arrancar el bot para cargar la config guardada
+function applyBotConfig() {
+  const cfg = loadBotConfig();
+  for (const [key, value] of Object.entries(cfg)) {
+    if (value) process.env[key] = value;
+  }
+}
+
+module.exports.applyBotConfig = applyBotConfig;
 
 const data = new SlashCommandBuilder()
   .setName('configurar')
@@ -197,29 +230,13 @@ async function handleCanal(interaction) {
     });
   }
 
-  // Canal global
-  process.env.ANNOUNCEMENT_CHANNEL_ID = canal.id;
-
-  // Intentar persistir en .env
-  let persistido = false;
-  try {
-    const fs = require('fs'), path = require('path');
-    const envPath = path.resolve(process.cwd(), '.env');
-    if (fs.existsSync(envPath)) {
-      let c = fs.readFileSync(envPath, 'utf8');
-      const rx = /^ANNOUNCEMENT_CHANNEL_ID=.*$/m;
-      c = rx.test(c) ? c.replace(rx, `ANNOUNCEMENT_CHANNEL_ID=${canal.id}`) : c + `\nANNOUNCEMENT_CHANNEL_ID=${canal.id}`;
-      fs.writeFileSync(envPath, c, 'utf8');
-      persistido = true;
-    }
-  } catch { /* no crítico */ }
+  // Canal global — guardar en bot_config.json
+  saveBotConfig('ANNOUNCEMENT_CHANNEL_ID', canal.id);
 
   const embed = new EmbedBuilder()
     .setColor(COLORS.success)
     .setTitle('✅ Canal de anuncios actualizado')
-    .setDescription(persistido
-      ? `Los anuncios se publicarán en ${canal}. El cambio fue guardado en \`.env\` y persistirá al reiniciar.`
-      : `Los anuncios se publicarán en ${canal}.\n\n⚠️ No pude escribir en el \`.env\`. Actualiza \`ANNOUNCEMENT_CHANNEL_ID=${canal.id}\` manualmente.`)
+    .setDescription(`Los anuncios se publicarán en ${canal}. El cambio quedó guardado y persistirá al reiniciar.`)
     .setTimestamp();
 
   return interaction.reply({ embeds: [embed], ephemeral: true });
@@ -301,25 +318,10 @@ async function handleAvisos(interaction) {
   const esStaff = interaction.guildId === process.env.DISCORD_GUILD_ID;
   const envKey  = esStaff ? 'STAFF_NOTICE_ID' : 'NOTICE_CHANNEL_ID';
 
-  process.env[envKey] = canal.id;
-
-  let persistido = false;
-  try {
-    const fs = require('fs'), path = require('path');
-    const envPath = path.resolve(process.cwd(), '.env');
-    if (fs.existsSync(envPath)) {
-      let c = fs.readFileSync(envPath, 'utf8');
-      const rx = new RegExp(`^${envKey}=.*$`, 'm');
-      c = rx.test(c) ? c.replace(rx, `${envKey}=${canal.id}`) : c + `\n${envKey}=${canal.id}`;
-      fs.writeFileSync(envPath, c, 'utf8');
-      persistido = true;
-    }
-  } catch { /* no crítico */ }
+  saveBotConfig(envKey, canal.id);
 
   await interaction.reply({
-    content: persistido
-      ? `✅ Canal de avisos actualizado a ${canal} y guardado en \`.env\`.`
-      : `✅ Canal de avisos actualizado a ${canal}.\n\n⚠️ Actualiza \`${envKey}=${canal.id}\` en tu \`.env\` manualmente.`,
+    content: `✅ Canal de avisos actualizado a ${canal}. El cambio quedó guardado y persistirá al reiniciar.`,
     ephemeral: true,
   });
 }
@@ -377,32 +379,11 @@ async function handleInfo(interaction) {
 async function handleCanalEnv(interaction, envKey, label) {
   const canal = interaction.options.getChannel('canal');
 
-  // Actualizar en memoria
-  process.env[envKey] = canal.id;
-
-  // Intentar persistir en el archivo .env
-  let persistido = false;
-  try {
-    const fs   = require('fs');
-    const path = require('path');
-    const envPath = path.resolve(process.cwd(), '.env');
-    if (fs.existsSync(envPath)) {
-      let envContent = fs.readFileSync(envPath, 'utf8');
-      const regex = new RegExp(`^${envKey}=.*$`, 'm');
-      if (regex.test(envContent)) {
-        envContent = envContent.replace(regex, `${envKey}=${canal.id}`);
-      } else {
-        envContent += `\n${envKey}=${canal.id}`;
-      }
-      fs.writeFileSync(envPath, envContent, 'utf8');
-      persistido = true;
-    }
-  } catch { /* si falla, no es crítico */ }
+  // Guardar en data/bot_config.json (persiste entre reinicios en Railway)
+  saveBotConfig(envKey, canal.id);
 
   await interaction.reply({
-    content: persistido
-      ? `✅ Canal de **${label}** actualizado a ${canal} y guardado en \`.env\` ${persistido ? '(persistirá al reiniciar)' : ''}`
-      : `✅ Canal de **${label}** actualizado a ${canal}.\n\n⚠️ No pude escribir en el \`.env\` automáticamente. Actualiza \`${envKey}=${canal.id}\` manualmente para que persista al reiniciar.`,
+    content: `✅ Canal de **${label}** actualizado a ${canal} y guardado. El cambio persistirá al reiniciar.`,
     ephemeral: true,
   });
 }

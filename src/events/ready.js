@@ -4,12 +4,16 @@ const monitor    = require('../services/monitor');
 const scheduler  = require('../services/scheduler');
 const webhook    = require('../services/webhookServer');
 const logger     = require('../utils/logger');
+const configurar = require('../commands/configurar');
 
 module.exports = {
   name: Events.ClientReady,
   once: true,
 
   async execute(client) {
+    // Cargar config persistente guardada con /configurar (sobrescribe process.env)
+    configurar.applyBotConfig();
+
     logger.success('Bot', `Conectado como ${client.user.tag}`);
     logger.info('Bot', `Sirviendo en ${client.guilds.cache.size} servidor(es)`);
 
