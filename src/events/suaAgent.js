@@ -254,13 +254,9 @@ function extractFromMessage(text, mentions) {
   const capMatch = text.match(/cap(?:itulo)?\.?\s*(\d+(?:[.,]\d+)?)/i);
   if (capMatch) extracted.capitulo = capMatch[1];
 
-  // URLs — separar TMO vs Colorcito para proyecto.add
-  const allUrls = [...text.matchAll(/(https?:\/\/[^\s]+)/g)].map(m => m[1].replace(/[)>.,]+$/, ''));
-  if (allUrls.length) extracted.url = allUrls[0];
-  const tmoUrlMatch   = allUrls.find(u => /lectortmo|zonatmo|tumangaonline/i.test(u));
-  const colorUrlMatch = allUrls.find(u => /colorcito/i.test(u));
-  if (tmoUrlMatch)   extracted.tmoUrl   = tmoUrlMatch;
-  if (colorUrlMatch) extracted.colorUrl = colorUrlMatch;
+  // URL
+  const urlMatch = text.match(/(https?:\/\/[^\s]+)/);
+  if (urlMatch) extracted.url = urlMatch[1];
 
   // Rol de staff — nombre o key
   for (const [key, info] of Object.entries(STAFF_ROLES)) {
@@ -503,20 +499,12 @@ async function flowProyectoAdd(step, data, message) {
   }
   if (step === 'awaitUrls') {
     const t = message.content;
-    // TMO: lectortmo.com, zonatmo.com, tumangaonline.com y variantes
-    const tmoMatch   = t.match(/(https?:\/\/[^\s]*(?:lectortmo|zonatmo|tumangaonline)[^\s]*)/i);
-    // Colorcito: colorcito.com, colorcitoscan.com y variantes
-    const colorMatch = t.match(/(https?:\/\/[^\s]*colorcito[^\s]*)/i);
-    if (tmoMatch)   data.tmoUrl   = tmoMatch[1].replace(/[)>.,]+$/, ''); // limpiar trailing chars
-    if (colorMatch) data.colorUrl = colorMatch[1].replace(/[)>.,]+$/, '');
+    const tmoMatch   = t.match(/(https?:\/\/(?:www\.)?tumangaonline\.[^\s]+)/i);
+    const colorMatch = t.match(/(https?:\/\/(?:www\.)?colorcito\.[^\s]+)/i);
+    if (tmoMatch)   data.tmoUrl   = tmoMatch[1];
+    if (colorMatch) data.colorUrl = colorMatch[1];
     if (!data.tmoUrl && !data.colorUrl) {
-      return {
-        reply: pick([
-          `Mmm... no reconocí esa URL ${K.disculpa()} Necesito un link de TMO (lectortmo.com) o Colorcito (colorcito.com). ¿Lo intentas de nuevo?`,
-          `E-esa URL no la reconocí... ${K.timida()} Pega el link directo de TMO o Colorcito, por favor.`,
-          `N-no pude leer ese link ${K.disculpa()} Asegúrate de que sea de lectortmo.com o colorcito.com.`,
-        ]),
-      };
+      return { reply: `Necesito al menos una URL (TMO o Colorcito) ${K.disculpa()} Pégala aquí.` };
     }
     return execProyectoAdd(data, message);
   }
@@ -761,7 +749,11 @@ async function flowAnunciar(step, data, message) {
   }
 
   if (step === 'awaitMensaje') {
-    if (!esSaltar(message.content)) {
+    // Siempre marcar la clave como vista, incluso si el usuario salta
+    // Si no se hace, continueAnunciar vuelve a preguntar indefinidamente
+    if (esSaltar(message.content)) {
+      data.mensajePersonalizado = null;
+    } else {
       data.mensajePersonalizado = message.content.replace(/<@!?\d+>/g, '').trim();
     }
     return continueAnunciar(data, message);
@@ -769,7 +761,9 @@ async function flowAnunciar(step, data, message) {
 
   if (step === 'awaitPortada') {
     const t = message.content.replace(/<@!?\d+>/g, '').trim();
-    if (!esSaltar(t)) {
+    if (esSaltar(t)) {
+      data.portadaUrl = null;
+    } else {
       const urlMatch = t.match(/(https?:\/\/[^\s]+)/);
       data.portadaUrl = urlMatch ? urlMatch[1] : null;
     }
@@ -786,7 +780,9 @@ async function flowAnunciar(step, data, message) {
 
   if (step === 'awaitTmoLink') {
     const t = message.content.replace(/<@!?\d+>/g, '').trim();
-    if (!esSaltar(t)) {
+    if (esSaltar(t)) {
+      data.tmoLink = null;
+    } else {
       const urlMatch = t.match(/(https?:\/\/[^\s]+)/);
       data.tmoLink = urlMatch ? urlMatch[1] : null;
     }
@@ -794,19 +790,19 @@ async function flowAnunciar(step, data, message) {
   }
 
   if (step === 'awaitTraductores') {
-    if (!esSaltar(message.content)) data.traductores = parsearCreditos(message.content);
+    data.traductores = esSaltar(message.content) ? null : parsearCreditos(message.content);
     return continueAnunciar(data, message);
   }
   if (step === 'awaitCleaners') {
-    if (!esSaltar(message.content)) data.cleaners = parsearCreditos(message.content);
+    data.cleaners = esSaltar(message.content) ? null : parsearCreditos(message.content);
     return continueAnunciar(data, message);
   }
   if (step === 'awaitTypeos') {
-    if (!esSaltar(message.content)) data.typeos = parsearCreditos(message.content);
+    data.typeos = esSaltar(message.content) ? null : parsearCreditos(message.content);
     return continueAnunciar(data, message);
   }
   if (step === 'awaitOtros') {
-    if (!esSaltar(message.content)) data.otros = parsearCreditos(message.content);
+    data.otros = esSaltar(message.content) ? null : parsearCreditos(message.content);
     return execAnunciar(data, message);
   }
 }
@@ -2614,12 +2610,11 @@ module.exports = {
   wasHandled,
   name: Events.MessageCreate,
   async execute(message) {
-    if (message.author.bot)        return;
-    if (!message.member)           return; // fuera de servidor
-    if (message.mentions.everyone) return; // ignorar @everyone y @here
+    if (message.author.bot) return;
+    if (!message.member)    return; // fuera de servidor
 
     const clientId    = message.client.user.id;
-    const isMentioned = message.mentions.has(clientId, { ignoreEveryone: true });
+    const isMentioned = message.mentions.has(clientId);
     const session     = getSession(message.author.id);
 
     // Si no hay sesión activa Y no fue mencionada, ignorar
@@ -2712,8 +2707,6 @@ module.exports = {
     if (extracted.nombre)       data.nombre       = extracted.nombre;
     if (extracted.proyectoId)   data.proyectoId   = extracted.proyectoId;
     if (extracted.estado)       data.estado       = extracted.estado;
-    if (extracted.tmoUrl)       data.tmoUrl       = extracted.tmoUrl;
-    if (extracted.colorUrl)     data.colorUrl     = extracted.colorUrl;
 
     if (intent === 'buscar' && !data.query) {
       const qm = cleanText.match(/busca(?:r|me)?\s+(.+)/i);
