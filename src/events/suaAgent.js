@@ -742,9 +742,20 @@ async function flowAnunciar(step, data, message) {
   }
 
   if (step === 'awaitCapitulo') {
-    const capMatch = message.content.match(/(\d+(?:[.,]\d+)?)/);
-    if (!capMatch) return { reply: `No entendí el número... escríbelo así: \`12\` o \`12.5\` ${K.disculpa()}` };
-    data.capitulo = capMatch[1];
+    const t = message.content.replace(/<@!?\d+>/g, '').trim();
+    // Detectar rango: "17 al 20", "17-20", "17 a 20"
+    const rangoMatch = t.match(/(\d+(?:[.,]\d+)?)\s*(?:al?|[-–]|hasta)\s*(\d+(?:[.,]\d+)?)/i);
+    if (rangoMatch) {
+      const desde = rangoMatch[1];
+      const hasta = rangoMatch[2];
+      data.capitulo = `${desde}-${hasta}`;
+      data.capituloLabel = `${desde} al ${hasta}`;
+    } else {
+      const capMatch = t.match(/(\d+(?:[.,]\d+)?)/);
+      if (!capMatch) return { reply: `No entendí el número... escríbelo así: \`12\`, \`12.5\` o un rango como \`17 al 20\` ${K.disculpa()}` };
+      data.capitulo = capMatch[1];
+      data.capituloLabel = capMatch[1];
+    }
     return continueAnunciar(data, message);
   }
 
@@ -837,14 +848,23 @@ async function continueAnunciar(data, message) {
       nextStep: 'awaitPortada',
     };
   }
-  // Solo preguntar fuente si el proyecto tiene ambas
-  if (!data.fuente && p?.sources?.tmo && p?.sources?.colorcito) {
-    return {
-      reply: `¿En qué plataforma anuncio? **TMO**, **Colorcito** o **ambas** ${K.tranqui()}`,
-      nextStep: 'awaitFuente',
-    };
+  // Preguntar fuente:
+  // - Si tiene ambas plataformas: preguntar cuál usar (TMO puede estar caído)
+  // - Si solo tiene una: usar esa directamente
+  if (!data.fuente) {
+    if (p?.sources?.tmo && p?.sources?.colorcito) {
+      return {
+        reply: pick([
+          `¿En qué plataforma anuncio? **TMO**, **Colorcito** o **ambas** ${K.tranqui()} (si TMO está caído, di **colorcito**)`,
+          `¿Dónde publico el anuncio? **ambas**, solo **TMO**, solo **Colorcito** ${K.timida()} Si TMO está fuera de servicio, elige **colorcito**.`,
+        ]),
+        nextStep: 'awaitFuente',
+      };
+    }
+    if (p?.sources?.tmo)       data.fuente = 'tmo';
+    else if (p?.sources?.colorcito) data.fuente = 'colorcito';
+    else data.fuente = 'ambas';
   }
-  if (!data.fuente) data.fuente = 'ambas';
 
   // Solo preguntar link TMO si aplica
   const necesitaTmo = (data.fuente === 'tmo' || data.fuente === 'ambas') && p?.sources?.tmo;
@@ -923,7 +943,7 @@ async function execAnunciar(data, message) {
   ].filter(Boolean));
 
   const chapData = {
-    chapterNum:   data.capitulo,
+    chapterNum:   data.capituloLabel || data.capitulo,
     chapterTitle: null,
     chapterUrl:   chapterUrlTmo || chapterUrlColor || null,
     thumbnail:    data.portadaUrl || p.thumbnail || null,
@@ -984,7 +1004,7 @@ async function execAnunciar(data, message) {
   }).catch(() => null);
 
   if (!msg) return { reply: SUA.anunciar.errorEnvio, done: true };
-  return { reply: SUA.anunciar.enviado(p.name, data.capitulo), done: true };
+  return { reply: SUA.anunciar.enviado(p.name, data.capituloLabel || data.capitulo), done: true };
 }
 
 // ── avisar ────────────────────────────────────────────────────────────────────
@@ -2627,6 +2647,28 @@ module.exports = {
 
     // ── Si hay sesión activa, continuar el flujo ──────────────────────────
     if (session) {
+      // ── Guard de canal: si el usuario escribió en otro canal, pausar ────
+      // Solo aplica si fue mencionada (sin mención en otro canal = ignorar)
+      if (session.channelId && message.channelId !== session.channelId) {
+        if (!isMentioned) return; // sin mención = ignorar completamente
+
+        // Fue mencionada en otro canal — pausar y avisar
+        markHandled(message.id);
+        const esValk = VALK_ID && message.author.id === VALK_ID;
+        if (esValk) {
+          return message.reply(pick([
+            `V-valk... tenemos una conversación abierta en <#${session.channelId}> ${K.timida()} ¿Seguimos allá o la cancelo?`,
+            `E-eh, Valk, te estaba esperando en <#${session.channelId}> ${K.tranqui()} Si quieres continuar, vuelve allí. Si no, di \`cancelar\`.`,
+            `¡V-valk! Tenía pendiente algo contigo en <#${session.channelId}> ${K.timida()} Respóndeme allá o di \`cancelar\` aquí para cerrar la sesión.`,
+          ])).catch(() => {});
+        }
+        return message.reply(pick([
+          `E-eh... tenemos algo pendiente en <#${session.channelId}> ${K.timida()} ¿Podrías volver allá para continuar? Si quieres cancelar, escribe \`cancelar\` aquí.`,
+          `H-hola... estaba esperándote en <#${session.channelId}> ${K.tranqui()} Continúa allí o di \`cancelar\` para terminar la sesión.`,
+          `¡Aquí no es! ${K.timida()} Tenemos una conversación abierta en <#${session.channelId}>. Vuelve allá o escribe \`cancelar\`.`,
+        ])).catch(() => {});
+      }
+
       // Cancelación explícita
       if (/^(cancelar?|cancel|salir|stop|no gracias)$/i.test(cleanText)) {
         clearSession(message.author.id);

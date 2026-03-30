@@ -119,7 +119,7 @@ const Tareas = {
 
   delete(id) {
     const all = this.getAll();
-    delete all[all];
+    delete all[id];
     return writeJSON(DATA_FILES.tareas, all);
   },
 
