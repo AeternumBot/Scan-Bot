@@ -1,6 +1,5 @@
 // src/events/suaMention.js
 const { Events } = require('discord.js');
-const axios      = require('axios');
 const suaAgent   = require('./suaAgent');
 
 // ── Contexto temporal ─────────────────────────────────────────────────────────
@@ -19,26 +18,6 @@ function getContexto() {
   else if (day === 5) dayType = 'viernes';
   else dayType = 'semana';
   return { hour, timeSlot, dayType };
-}
-
-// ── Clima ─────────────────────────────────────────────────────────────────────
-let _climaCache = null, _climaTime = 0;
-async function getClima() {
-  if (_climaCache && Date.now() - _climaTime < 30 * 60 * 1000) return _climaCache;
-  try {
-    const res = await axios.get('https://wttr.in/Bogota?format=%t+%C', { timeout: 4000, headers: { 'User-Agent': 'curl/7.0' } });
-    const raw = res.data.trim();
-    const temp = parseInt(raw);
-    const desc = raw.toLowerCase();
-    let estado = 'despejado';
-    if (desc.includes('thunder') || desc.includes('storm')) estado = 'tormenta';
-    else if (desc.includes('rain') || desc.includes('drizzle')) estado = 'lluvia';
-    else if (desc.includes('cloud') || desc.includes('overcast')) estado = 'nublado';
-    else if (!isNaN(temp) && temp >= 24) estado = 'calor';
-    _climaCache = { temp: isNaN(temp) ? null : temp, estado, raw };
-    _climaTime = Date.now();
-    return _climaCache;
-  } catch { return { temp: null, estado: 'despejado', raw: '' }; }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -789,8 +768,7 @@ module.exports = {
     if (suaAgent.wasHandled(message.id)) return;
 
     const ctx   = getContexto();
-    const clima = await getClima();
-    const w     = clima.estado;
+    const w     = 'despejado'; // clima estático — eliminado wttr.in (V4)
 
     const texto = message.content
       .replace(/<@!?\d+>/g, '')
@@ -869,7 +847,7 @@ module.exports = {
     }
 
     // ── Flujo normal ──────────────────────────────────────────────────────────
-    const intents = getIntents(ctx, clima);
+    const intents = getIntents(ctx, { estado: w });
     const intent  = detectarIntent(texto, intents);
 
     let respuesta;

@@ -168,6 +168,16 @@ const data = new SlashCommandBuilder()
       )
   )
   .addSubcommand(sub =>
+    sub.setName('raws')
+      .setDescription('Configura el canal donde se suben los zips de raws')
+      .addChannelOption(o =>
+        o.setName('canal')
+          .setDescription('Canal donde el staff sube los archivos .zip de raws')
+          .addChannelTypes(ChannelType.GuildText)
+          .setRequired(true)
+      )
+  )
+  .addSubcommand(sub =>
     sub.setName('info')
       .setDescription('Muestra la configuración actual del bot')
   );
@@ -207,6 +217,7 @@ async function execute(interaction) {
   if (sub === 'tickets')       return handleCanalEnv(interaction, 'TICKET_CHANNEL_READER_ID',     'tickets de error (lectores)');
   if (sub === 'reclutamiento') return handleCanalEnv(interaction, 'RECRUIT_CHANNEL_READER_ID',    'reclutamiento (lectores)');
   if (sub === 'estancado')     return handleEstancado(interaction);
+  if (sub === 'raws')          return handleCanalEnv(interaction, 'RAWS_CHANNEL_ID', 'raws (subida de zips)');
   if (sub === 'info')          return handleInfo(interaction);
 }
 
@@ -340,6 +351,7 @@ async function handleInfo(interaction) {
   const canalAusencias = fmt(process.env.ABSENCES_CHANNEL_ID);
   const canalTickets   = fmt(process.env.TICKET_CHANNEL_READER_ID);
   const canalReclu     = fmt(process.env.RECRUIT_CHANNEL_READER_ID);
+  const canalRaws      = fmt(process.env.RAWS_CHANNEL_ID);
 
   const embed = new EmbedBuilder()
     .setColor(COLORS.info)
@@ -353,6 +365,7 @@ async function handleInfo(interaction) {
       { name: '🏖️ Ausencias',        value: canalAusencias, inline: true },
       { name: '🎫 Tickets (lectores)',value: canalTickets,   inline: true },
       { name: '📋 Reclutamiento',     value: canalReclu,     inline: true },
+      { name: '📦 Raws (zips)',       value: canalRaws,      inline: true },
       { name: '📊 Proyectos',         value: `${projects.length} total · ${active} activos`, inline: true },
       { name: '⏱️ Check interval',    value: `Cada ${process.env.CHECK_INTERVAL_MINUTES || 25} min`, inline: true },
       { name: '🕐 Zona horaria',      value: process.env.TIMEZONE || 'America/Bogota', inline: true },
@@ -363,12 +376,12 @@ async function handleInfo(interaction) {
       value:
         '`/proyecto add/remove/list/info/toggle/setstatus`\n' +
         '`/status [proyecto]`\n' +
-        '`/configurar canal/reacciones/rol/avisos/tareas/registros/ausencias/tickets/reclutamiento/estancado/verificar/info`\n' +
+        '`/configurar canal/reacciones/rol/avisos/tareas/registros/ausencias/tickets/reclutamiento/raws/estancado/verificar/info`\n' +
         '`/tarea asignar/completar/lista/eliminar`\n' +
         '`/ausencia pedir/registrar/cancelar/lista`\n' +
         '`/ticket abrir/cerrar/lista`\n' +
         '`/reclutar postular/cerrar/lista`\n' +
-        '`/buscar <nombre> <fuente>` · `/anunciar` · `/avisar` · `/salud`',
+        '`/buscar <nombre> <fuente>` · `/anunciar` · `/avisar` · `/salud` · `/raws espacio/eliminar`',
     })
     .setTimestamp();
 
