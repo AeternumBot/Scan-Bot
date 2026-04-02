@@ -300,10 +300,15 @@ async function processRawsUpload(message) {
  * También acepta: "NombreProyecto-NumeroCapitulo.zip" (sin espacios)
  */
 function parseZipName(filename) {
-  const base = path.basename(filename, '.zip').trim();
+  // Normalizar guiones bajos a espacios: Discord (o algunos SO) reemplaza
+  // los espacios del nombre de archivo con '_' al subir el adjunto.
+  // «La_Joven_Rebelde_-_31.zip» → «La Joven Rebelde - 31.zip»
+  const normalized = path.basename(filename, '.zip')
+    .replace(/_/g, ' ')
+    .trim();
 
   // Separador con espacios: "Nombre - 07"
-  const matchSpaced = base.match(/^(.+?)\s+-\s+(\d+(?:\.\d+)?)$/);
+  const matchSpaced = normalized.match(/^(.+?)\s+-\s+(\d+(?:\.\d+)?)$/);
   if (matchSpaced) {
     return {
       projectName: matchSpaced[1].trim(),
@@ -312,7 +317,7 @@ function parseZipName(filename) {
   }
 
   // Separador sin espacios: "Nombre-07"
-  const matchDash = base.match(/^(.+?)-(\d+(?:\.\d+)?)$/);
+  const matchDash = normalized.match(/^(.+?)-(\d+(?:\.\d+)?)$/);
   if (matchDash) {
     return {
       projectName: matchDash[1].trim(),
