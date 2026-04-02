@@ -23,6 +23,8 @@ Sua es la asistente del scan. Tiene dos formas de recibir órdenes:
 | `/moderar` | ✅ | ❌ |
 | `/tarea` | ✅ | ❌ |
 | `/ausencia` | ✅ | ❌ |
+| `/raws` | ✅ | ❌ |
+| `/setupsistemas` | ✅ | ✅ |
 | `/configurar` | ✅ | ✅ |
 | `/buscar` | ✅ | ❌ |
 | `/salud` | ✅ | ❌ |
@@ -75,6 +77,38 @@ Solo admins (permiso Gestionar Servidor).
 
 ---
 
+### `/raws` — Subida Automática de Raws a Drive
+Solo staff autorizado (requiere permisos de Administrador o Moderador).
+
+Recibe los archivos `.zip` de los capítulos sin limpiar y los sube automáticamente a Google Drive en las carpetas correspondientes. Si la carpeta del capítulo no existe, la crea con las 4 carpetas base (`Clean`, `Final`, `Raw`, `Tradu`). Sua extraerá las imágenes del zip y las subirá ordenadamente a la carpeta `Raw`.
+
+**Uso con slash:**
+```
+/raws                  → (Envías el comando y obligatoriamente adjuntas el archivo .zip en Discord)
+```
+> ⚠️ Esta función está diseñada principalmente en forma de comando slash directo por eficiencia al adjuntar archivos pesados.
+
+---
+
+### `/setupsistemas` — Paneles Interactivos para Sistemas
+Solo Admins (permiso Gestionar Servidor).
+
+Genera los embeds permanentes con botones interactivos para los sistemas de Reclutamiento y Tickets, permitiendo a los lectores iniciar la interacción sin usar comandos ni arrobas directamente.
+
+| Subcomando | Qué hace |
+|---|---|
+| `tickets` | Envía el panel amarillo con el botón "🎫 Pedir Ticket" |
+| `reclutamiento` | Envía el panel azul con el botón "✨ Postularme" |
+
+**Uso con slash:**
+```
+/setupsistemas tickets        → Usar en el canal destinado a avisos/tickets
+/setupsistemas reclutamiento  → Usar en el canal de reclutamiento
+```
+> ⚠️ Una vez ejecutado, el usuario ya no necesitará interactuar con el comando, podrá tocar los botones que crea este comando.
+
+---
+
 ### `/status` — Estado de proyectos en Drive
 Visible para todos en staff.
 
@@ -123,7 +157,10 @@ Solo moderadores (rol Mod).
 @Sua dale el rol de Traductor a @Juan
 @Sua quítale el rol de Cleaner a @Juan
 @Sua saca a @Juan del servidor
+@Sua borra los últimos 10 mensajes
+@Sua vacía el canal
 ```
+> ⚠️ **Sobre el borrado de mensajes (Purga):** Sua puede borrar mensajes por ti si eres moderador. Tiene un límite de **100 mensajes** por comando, y por limitaciones de Discord, **no puede borrar mensajes de más de 14 días** de antigüedad. Si le dices "vacía el chat", te pedirá confirmación explícita para evitar sustos de borrado y luego limpiará el canal de confirmaciones.
 > ⚠️ Si intentas moderar a Valk, Sua se negará sin importar quién lo pida.
 > ⚠️ Para acciones destructivas (ban/expulsión), Sua siempre pedirá confirmación con **sí** o **no** antes de ejecutar.
 
@@ -341,7 +378,7 @@ Gestiona los roles de series en el servidor de lectores. Los lectores reaccionan
 
 ### `/ticket` — Reporte de errores en capítulos
 
-Los **lectores** abren tickets desde su servidor. Se crea un canal temporal en el servidor de staff visible solo para moderadores. Al cerrarlo, el lector recibe un DM y el canal se elimina.
+Los **lectores** abren tickets interactuando con los botones creados por `/setupsistemas`. Esto inicializa **instantáneamente** un canal privado e invoca al agente Sua directamente. Los comandos slash de esta sección están vivos y pueden ser usados si así se prefiere como un atajo. Al cerrarlo, el lector recibe un DM y el canal se elimina.
 
 | Subcomando | Disponible en | Quién |
 |---|---|---|
@@ -373,7 +410,7 @@ Los **lectores** abren tickets desde su servidor. Se crea un canal temporal en e
 
 ### `/reclutar` — Sistema de postulaciones
 
-Los **lectores** se postulan desde el canal de reclutamiento. Sua recopila sus datos conversacionalmente, crea un canal privado para el candidato en el servidor de lectores y notifica al staff con botones de acción.
+Los **lectores** se postulan interactuando con el botón generado por `/setupsistemas` desde su canal. El sistema crea la sesión privada instantáneamente y Sua recopila los datos uno a uno, para después notificar al equipo vía botones. Los comandos manuales Slash están como _fallback_.
 
 | Subcomando | Disponible en | Quién |
 |---|---|---|
@@ -475,6 +512,7 @@ Para **banear**, **expulsar** y **eliminar proyectos**, Sua siempre pide confirm
 | **Expulsar** | `expulsa a @X`, `kick a @X`, `echa a @X`, `saca a @X del servidor` |
 | **Dar rol** | `dale el rol de X a @Y`, `asígnale el rol de X a @Y`, `ponle X a @Y` |
 | **Quitar rol** | `quítale el rol de X a @Y`, `saca el rol de X a @Y` |
+| **Purga/Vaciado (Mod)** | `borra 10 mensajes`, `borra los últimos 5`, `limpia el canal`, `vacía el chat` |
 | **Asignar tarea** | `asígnale una tarea a @X`, `dale la traducción del cap X a @Y` |
 | **Completar tarea** | `ya terminé la tarea`, `marcar tarea como lista` |
 | **Ver tareas** | `ver tareas activas`, `tareas pendientes`, `tareas de @X` |
