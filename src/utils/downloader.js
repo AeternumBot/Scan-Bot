@@ -103,8 +103,17 @@ class DownloaderHub {
         console.log(`[Downloader] Iniciando scrape con Puppeteer para Naver: ${comicUrl}`);
         
         const browser = await puppeteer.launch({
-            headless: 'new', // Usa el nuevo modo headless rápido
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+            headless: 'new',
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu',
+                '--no-first-run',
+                '--no-zygote',
+                '--single-process', // Ayuda mucho en RAM limitada
+                '--disable-extensions'
+            ]
         });
         
         try {
