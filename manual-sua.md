@@ -24,8 +24,8 @@ Sua es la asistente del scan. Tiene dos formas de recibir órdenes:
 | `/tarea` | ✅ | ❌ |
 | `/ausencia` | ✅ | ❌ |
 | `/raws` | ✅ | ❌ |
-| `/setupsistemas` | ✅ | ✅ |
-| `/configurar` | ✅ | ✅ |
+| `/setupsistemas` | ✅ | ✅ | (Soporte para GIFs grandes y personalidad) |
+| `/configurar` | ✅ | ✅ | (Actualizado con IDs: 1489082254146932927 / 1489082481474011176) |
 | `/buscar` | ✅ | ❌ |
 | `/salud` | ✅ | ❌ |
 | `/debug` | ✅ | ❌ |
@@ -403,8 +403,12 @@ Los **lectores** abren tickets interactuando con los botones creados por `/setup
 @Sua el cap 45 no carga en TMO
 @Sua las páginas del cap 45 están desordenadas
 @Sua cierra el ticket_001
+@Sua ticket terminado              → (Si se dice dentro del canal del ticket, Sua lo identifica y cierra sola)
 @Sua ver tickets abiertos
 ```
+> ⚠️ **Cierre Rápido:** Si eres moderador y estás dentro de un canal de ticket, simplemente di `@Sua ticket terminado`. Ella se despedirá y el canal se autodestruirá en 10 segundos.
+
+---
 
 ---
 
@@ -434,11 +438,13 @@ Los **lectores** se postulan interactuando con el botón generado por `/setupsis
 @Sua quiero unirme al equipo
 @Sua me quiero postular
 @Sua quiero ser traductor
+@Sua entrevista terminada          → (Si se dice dentro del canal de la entrevista, Sua la cierra sola)
 ```
-> ⚠️ **Esto solo funciona en el canal de reclutamiento configurado.** Si se hace desde otro canal, Sua lo rechaza y dice cuál es el canal correcto.
+> ⚠️ **Roles Disponibles:** Se han simplificado a solo tres opciones: **Traductor**, **Cleaner / Redibujador** y **Typer**.
+> ⚠️ **Cierre Rápido:** Si eres moderador o staff y estás dentro del canal de un candidato, di `@Sua entrevista terminada`. Ella se despedirá y el canal se borrará en 10 segundos.
 
 **Flujo completo del agente:**
-1. Sua pregunta el rol de interés
+1. Sua pregunta el rol de interés (Traductor, Cleaner o Typer)
 2. Sua pregunta experiencia previa
 3. Sua pregunta disponibilidad semanal
 4. Sua pregunta qué motivó al candidato a postularse
@@ -578,3 +584,13 @@ Si el agente está en medio de una conversación contigo y de repente parece no 
 
 **Sobre la caché de proyectos del agente**
 El agente mantiene una caché interna de proyectos que se actualiza cada 30 segundos. Si acabas de agregar o eliminar un proyecto y el agente parece no reconocerlo todavía, espera unos segundos e intenta de nuevo.
+
+---
+
+## 🚀 PRÓXIMAS MEJORAS (Roadmap)
+
+Estamos trabajando para que Sua siga evolucionando. Estas son las funciones que se están considerando para futuras versiones:
+
+- **Descarga desde Links:** Implementar una forma para que Sua descargue imágenes directamente desde links de servicios de compartir archivos (Google Drive, Mega, etc.).
+- **Stitching Automático:** Una herramienta para unir (stichear) las imágenes de las raws automáticamente antes de subirlas a Drive.
+- **Personalización de Sua:** Expandir aún más las interacciones conversacionales y respuestas dinámicas de personalidad.

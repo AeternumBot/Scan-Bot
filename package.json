@@ -17,7 +17,9 @@
     "fs-extra": "^11.2.0",
     "google-auth-library": "^9.14.1",
     "googleapis": "^140.0.1",
-    "node-cron": "^3.0.3"
+    "node-cron": "^3.0.3",
+    "puppeteer": "^24.40.0",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.7"
