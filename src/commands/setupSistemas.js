@@ -26,7 +26,7 @@ async function execute(interaction) {
         'E-esto... hola. (〃>_<;〃) Si encontraste algún problemita en los capítulos, como globos vacíos o páginas que se ven cortadas, ¡por favor avísame!\n\n' +
         'No quiero que nadie tenga una mala experiencia leyendo... (´；ω；`) Así que si presionas el botón de abajo, Sua te creará un canal privado para que me cuentes qué pasó y lo arreglemos juntitos. (◕‿◕✿)'
       )
-      .setImage('https://media1.tenor.com/m/DhZaHLNdMGAAAAAC/marin-kitagawa.gif');
+      .setImage('https://media.tenor.com/DhZaHLNdMGAAAAAC/tenor.gif');
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -58,7 +58,7 @@ async function execute(interaction) {
         '▸ **Control de Calidad (QC)** (¡los que revisan que todo esté perfecto!)\n\n' +
         '¡N-no tengas miedo si no sabes nada! (〃>_<;〃) Aquí te enseñaremos con mucho cariño desde cero. ¡Dale al botón y hablemos! (◕‿◕✿)'
       )
-      .setImage('https://media1.tenor.com/m/fAS0_kCyse8AAAAC/chou-kaguya-hime-kaguya-hime.gif');
+      .setImage('https://media.tenor.com/fAS0_kCyse8AAAAC/tenor.gif');
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
