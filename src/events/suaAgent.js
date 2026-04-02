@@ -160,6 +160,7 @@ function detectIntent(text) {
   if (/expulsa(r|lo|la)?|echa(r|lo|la)?(\s+del?\s+(servidor|server))?|kick|saca(r|lo|la)?\s+del\s+(servidor|server)/.test(t)) return 'mod.kick';
   if (/da(r|le)?.{0,6}rol|asigna(r|le)?.{0,6}rol|pone(r|le)?.{0,6}rol|da(r|le)?.{0,6}cargo/.test(t)) return 'mod.darRol';
   if (/quita(r|le)?.{0,6}rol|saca(r|le)?.{0,6}rol|remov(er|e).{0,6}rol|quita(r|le)?.{0,6}cargo/.test(t)) return 'mod.quitarRol';
+  if (/borra(r)?|limpia(r)?|vacia(r)?|purg(ar)?|elimina(r)?.{0,10}mensaje/.test(t)) return 'mod.purge';
 
   // ── Proyectos ────────────────────────────────────────────────────────────
   if (/agrega(r|me)?.{0,8}proyecto|registra(r|me)?.{0,8}proyecto|a[nn]ade?.{0,8}proyecto|mete(r)?.{0,8}proyecto|nuevo proyecto|proyecto nuevo/.test(t)) return 'proyecto.add';
@@ -253,6 +254,11 @@ function extractFromMessage(text, mentions) {
   // Número de capítulo — "cap 12", "capítulo 3.5", "el cap 47"
   const capMatch = text.match(/cap(?:itulo)?\.?\s*(\d+(?:[.,]\d+)?)/i);
   if (capMatch) extracted.capitulo = capMatch[1];
+
+  // Cantidad de purga (borrar X mensajes)
+  const purgeMatch = text.match(/(?:borra|limpia|borrar|purgar|vacia|elimina|ultimos)\s+(\d+)/i);
+  if (purgeMatch) extracted.mensajeCount = parseInt(purgeMatch[1]);
+  if (t.includes('todo') || t.includes('chat') || t.includes('canal')) extracted.isPurgeAll = true;
 
   // URL
   const urlMatch = text.match(/(https?:\/\/[^\s]+)/);
@@ -467,6 +473,60 @@ async function execQuitarRol(data, guild) {
     return { reply: SUA.mod.rolQuitado(data.targetUser.username, rolInfo.name), done: true };
   } catch {
     return { reply: SUA.mod.errorAccion('quitar el rol'), done: true };
+  }
+}
+
+// ── mod.purge ─────────────────────────────────────────────────────────────────
+async function flowPurge(step, data, message) {
+  if (!hasModRole(message.member)) {
+    return { reply: `L-lo siento... ${K.timida()} Solo los moderadores pueden pedirme que borre mensajes.`, done: true };
+  }
+
+  if (step === 'start') {
+    if (data.isPurgeAll) {
+      return { 
+        reply: `¿E-estás segur@ de que quieres vaciar el canal? ${K.triste()} Solo puedo borrar los últimos 100 mensajes de menos de 14 días. Responde **sí** o **no**.`, 
+        nextStep: 'awaitConfirmAll' 
+      };
+    }
+    if (!data.mensajeCount) {
+      return { reply: `¿Cuántos mensajitos quieres que borre? ${K.timida()} (Máximo 100)`, nextStep: 'awaitCount' };
+    }
+    return execPurge(data.mensajeCount, message);
+  }
+
+  if (step === 'awaitCount') {
+    const num = parseInt(message.content.match(/\d+/)?.[0]);
+    if (!num || isNaN(num)) return { reply: `No detecté el número... ${K.disculpa()} Prueba escribiendo solo el número (ej: 10).` };
+    if (num <= 0 || num > 100) return { reply: `A-ay... tiene que ser un número entre 1 y 100 ${K.timida()}` };
+    return execPurge(num, message);
+  }
+
+  if (step === 'awaitConfirmAll') {
+    const resp = message.content.toLowerCase().trim();
+    if (/^s[ií]$/.test(resp)) {
+      return execPurge(100, message);
+    }
+    return { reply: CONFIRMAR.cancelado(), done: true };
+  }
+}
+
+async function execPurge(count, message) {
+  try {
+    // Discord.js bulkDelete devuelve una Collection de mensajes borrados
+    const deleted = await message.channel.bulkDelete(count, true);
+    
+    // Mandamos confirmación y que se borre sola a los 5s
+    const confirmMsg = await message.channel.send(`¡Listo! ${K.feliz()} Borré **${deleted.size}** mensajes para ti.`);
+    setTimeout(() => confirmMsg.delete().catch(() => {}), 5000);
+    
+    return { done: true }; // Finalizamos sin reply directo para no mandar doble mensaje
+  } catch (err) {
+    console.error('[Purge] Error:', err);
+    if (err.code === 50034) {
+      return { reply: `N-no puedo borrar mensajes de más de 14 días... ${K.triste()} Discord no me deja.`, done: true };
+    }
+    return { reply: `A-ay... algo salió mal al intentar limpiar el canal ${K.triste()}`, done: true };
   }
 }
 
@@ -2501,6 +2561,7 @@ async function routeIntent(intent, step, data, message) {
   if (intent === 'mod.kick')          return flowKick(step, data, message);
   if (intent === 'mod.darRol')        return flowDarRol(step, data, message);
   if (intent === 'mod.quitarRol')     return flowQuitarRol(step, data, message);
+  if (intent === 'mod.purge')         return flowPurge(step, data, message);
   if (intent === 'proyecto.add')      return flowProyectoAdd(step, data, message);
   if (intent === 'proyecto.remove')   return flowProyectoRemove(step, data, message);
   if (intent === 'proyecto.toggle')   return flowProyectoToggle(step, data, message);
