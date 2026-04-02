@@ -21,6 +21,13 @@ Al principio, Sua estaba atada a las limitaciones de una "Service Account" de Go
 
 Para darle la independencia que se merece, le enseñamos a usar **OAuth2** con *Refresh Tokens*. Ahora Sua se conecta a nuestro Drive con permisos reales, actuando en nuestro nombre. Gracias a esto, ya no hay barreras artificiales de almacenamiento. ¡Nuestra pequeña por fin vuela libre!
 
+### 3. Sistema de Interacción Conversacional por Botones (V4 Core)
+Sua ha dado un salto gigante en su forma de comunicarse. Ya no es necesario que los usuarios la mencionen o usen comandos complicados para reportar errores o postularse al equipo. 
+
+- **Paneles Interactivos:** Implementamos `/setupsistemas`, un comando que permite desplegar embeds elegantes con botones de acción inmediata (**"Pedir Ticket"** y **"Postularme"**).
+- **Creación Instantánea de Canales:** Al tocar un botón, Sua crea al segundo un canal privado (como `r-01` para reclutamiento o `ticket-XXX` para errores) y saluda al usuario dentro, iniciando la charla ella misma.
+- **Memoria por Sesión:** Sua ahora reconoce quién está hablando dentro de esos canales y mantiene una "memoria de sesión" de 5 minutos. ¡El usuario solo tiene que responderle y ella entenderá todo el contexto!
+
 ---
 
 ## 🩹 Curando Heridas (Bugs Solucionados)

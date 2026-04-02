@@ -2121,7 +2121,7 @@ async function flowAusenciaLista(step, data, message) {
 // FLUJOS V3 — TICKETS
 // ────────────────────────────────────────────────────────────────────────────
 
-const TIPOS_ERROR_V3 = { mal_subido: 'Mal subido', desorden: 'Desorden de páginas', no_carga: 'No carga / 404', otro: 'Otro' };
+const TIPOS_ERROR_V3 = { globos: 'Globos en blanco', cortadas: 'Tiras cortadas', desorden: 'Mal organizadas', otro: 'Otro' };
 
 async function flowTicketAbrir(step, data, message) {
   // Check de canal en TODOS los pasos — solo funciona desde el canal de tickets configurado
@@ -2137,7 +2137,7 @@ async function flowTicketAbrir(step, data, message) {
   if (step === 'start') {
     if (!data.proyectoId) return { reply: pick([`¿En qué proyecto encontraste el error? ${K.timida()}`, `¿Qué proyecto tiene el problema? ${K.tranqui()}`]), nextStep: 'awaitProyecto' };
     if (!data.capitulo)   return { reply: `¿En qué capítulo está el error? ${K.timida()}`, nextStep: 'awaitCapitulo' };
-    if (!data.tipoError)  return { reply: `¿Qué tipo de error es?\n\`mal_subido\` Páginas faltantes/duplicadas\n\`desorden\` Páginas desordenadas\n\`no_carga\` No carga / Error 404\n\`otro\` Otro ${K.tranqui()}`, nextStep: 'awaitTipo' };
+    if (!data.tipoError)  return { reply: `¿Qué tipo de error es?\n\`globos\` Globos en blanco\n\`cortadas\` Tiras cortadas\n\`desorden\` Mal organizadas\n\`otro\` Otro ${K.tranqui()}`, nextStep: 'awaitTipo' };
     if (!data.plataforma) return { reply: `¿En qué plataforma? \`tmo\`, \`colorcito\` o \`ambas\` ${K.timida()}`, nextStep: 'awaitPlataforma' };
     return execTicketAbrir(data, message);
   }
@@ -2148,7 +2148,7 @@ async function flowTicketAbrir(step, data, message) {
     }
     if (!data.proyectoId) return { reply: `No reconocí ese proyecto... intenta con el nombre exacto ${K.disculpa()}` };
     if (!data.capitulo)   return { reply: `¿En qué capítulo? ${K.timida()}`, nextStep: 'awaitCapitulo' };
-    if (!data.tipoError)  return { reply: `¿Tipo de error? \`mal_subido\` / \`desorden\` / \`no_carga\` / \`otro\` ${K.tranqui()}`, nextStep: 'awaitTipo' };
+    if (!data.tipoError)  return { reply: `¿Tipo de error? \`globos\` / \`cortadas\` / \`desorden\` / \`otro\` ${K.tranqui()}`, nextStep: 'awaitTipo' };
     if (!data.plataforma) return { reply: `¿Plataforma? \`tmo\` / \`colorcito\` / \`ambas\` ${K.timida()}`, nextStep: 'awaitPlataforma' };
     return execTicketAbrir(data, message);
   }
@@ -2156,16 +2156,16 @@ async function flowTicketAbrir(step, data, message) {
     const m = message.content.match(/\d+(?:[.,]\d+)?/);
     if (!m) return { reply: `No detecté el número... inténtalo de nuevo ${K.disculpa()}` };
     data.capitulo = m[0];
-    if (!data.tipoError)  return { reply: `¿Tipo de error? \`mal_subido\` / \`desorden\` / \`no_carga\` / \`otro\` ${K.tranqui()}`, nextStep: 'awaitTipo' };
+    if (!data.tipoError)  return { reply: `¿Tipo de error? \`globos\` / \`cortadas\` / \`desorden\` / \`otro\` ${K.tranqui()}`, nextStep: 'awaitTipo' };
     if (!data.plataforma) return { reply: `¿Plataforma? \`tmo\` / \`colorcito\` / \`ambas\` ${K.timida()}`, nextStep: 'awaitPlataforma' };
     return execTicketAbrir(data, message);
   }
   if (step === 'awaitTipo') {
     const t = message.content.toLowerCase();
-    if      (t.includes('mal') || t.includes('falt') || t.includes('duplic')) data.tipoError = 'mal_subido';
-    else if (t.includes('desor') || t.includes('pag'))                         data.tipoError = 'desorden';
-    else if (t.includes('carga') || t.includes('404'))                         data.tipoError = 'no_carga';
-    else                                                                        data.tipoError = 'otro';
+    if      (t.includes('globo') || t.includes('blanco'))              data.tipoError = 'globos';
+    else if (t.includes('corta') || t.includes('tira'))                data.tipoError = 'cortadas';
+    else if (t.includes('desor') || t.includes('mal org'))             data.tipoError = 'desorden';
+    else                                                               data.tipoError = 'otro';
     if (!data.plataforma) return { reply: `¿Plataforma? \`tmo\` / \`colorcito\` / \`ambas\` ${K.timida()}`, nextStep: 'awaitPlataforma' };
     return execTicketAbrir(data, message);
   }
@@ -2183,9 +2183,6 @@ async function execTicketAbrir(data, message) {
   const project = Projects.get(data.proyectoId);
   if (!project) return { reply: `No encontré ese proyecto ${K.timida()}`, done: true };
 
-  const staffGuildId = process.env.DISCORD_GUILD_ID;
-  if (!staffGuildId) return { reply: `El servidor de staff no está configurado ${K.triste()}`, done: true };
-
   const ticket = Tickets.create({
     usuarioId:    message.author.id,
     usuarioName:  message.author.username,
@@ -2195,41 +2192,36 @@ async function execTicketAbrir(data, message) {
     tipoError:    data.tipoError,
     plataforma:   data.plataforma,
     descripcion:  data.descripcion || '',
-    channelId:    'pending',
+    channelId:    data.canalTemporalId || 'pending',
   });
   if (!ticket) return { reply: `A-ay... algo salió mal al crear el ticket ${K.triste()} Intenta de nuevo.`, done: true };
 
-  try {
-    const { ChannelType, PermissionFlagsBits } = require('discord.js');
-    const staffGuild = await message.client.guilds.fetch(staffGuildId);
-    const canal = await staffGuild.channels.create({
-      name:  `ticket-${String(ticket.numero).padStart(3, '0')}-${project.name.toLowerCase().replace(/\s+/g, '-').slice(0, 20)}`,
-      type:  ChannelType.GuildText,
-      topic: `Ticket ${ticket.id} — ${project.name} Cap.${data.capitulo}`,
-      permissionOverwrites: [
-        { id: staffGuild.roles.everyone.id,  deny:  [PermissionFlagsBits.ViewChannel] },
-        { id: MOD_ROLE_ID,                   allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
-        { id: staffGuild.members.me.id,      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
-      ],
-    });
-    ticket.channelId = canal.id;
-    Tickets.save(ticket);
+  if (data.canalTemporalId) {
+    try {
+      const canal = message.channel;
+      if (canal && canal.id === data.canalTemporalId) {
+        await canal.edit({
+          name: `ticket-${String(ticket.numero).padStart(3, '0')}-${project.name.toLowerCase().replace(/\s+/g, '-').slice(0, 20)}`,
+          topic: `Ticket ${ticket.id} — ${project.name} Cap.${data.capitulo}`
+        }).catch(() => {});
 
-    await canal.send({
-      content: pick([
-        `<@&${MOD_ROLE_ID}> — Nuevo ticket \`${ticket.id}\` ${K.timida()}\n**Proyecto:** ${project.name} | **Cap:** ${data.capitulo} | **Error:** ${TIPOS_ERROR_V3[data.tipoError]} | **Plataforma:** ${data.plataforma}\n**Reportado por:** ${message.author.username}`,
-        `<@&${MOD_ROLE_ID}> — Un lector reportó un error ${K.tranqui()} **${project.name}** Cap.${data.capitulo} | ${TIPOS_ERROR_V3[data.tipoError]}`,
-      ]),
-      allowedMentions: { roles: [MOD_ROLE_ID] },
-    });
+        await canal.send({
+          content: pick([
+            `<@&${MOD_ROLE_ID}> — Nuevo ticket \`${ticket.id}\` ${K.timida()}\n**Proyecto:** ${project.name} | **Cap:** ${data.capitulo} | **Error:** ${TIPOS_ERROR_V3[data.tipoError]} | **Plataforma:** ${data.plataforma}`,
+            `<@&${MOD_ROLE_ID}> — Lector reportó un error ${K.tranqui()} **${project.name}** Cap.${data.capitulo} | ${TIPOS_ERROR_V3[data.tipoError]}`,
+          ]),
+          allowedMentions: { roles: [MOD_ROLE_ID] },
+        });
+      }
 
-    const canalReg = process.env.RECORDS_CHANNEL_ID;
-    if (canalReg) {
-      const reg = await message.client.channels.fetch(canalReg).catch(() => null);
-      if (reg) await reg.send(`🎫 Ticket \`${ticket.id}\` — **${project.name}** Cap.${data.capitulo} | ${TIPOS_ERROR_V3[data.tipoError]} | Canal: ${canal}`);
+      const canalReg = process.env.RECORDS_CHANNEL_ID;
+      if (canalReg) {
+        const reg = await message.client.channels.fetch(canalReg).catch(() => null);
+        if (reg) await reg.send(`🎫 Ticket \`${ticket.id}\` — **${project.name}** Cap.${data.capitulo} | ${TIPOS_ERROR_V3[data.tipoError]} | Canal: <#${data.canalTemporalId}>`);
+      }
+    } catch (err) {
+      console.error('[TicketFlow] Error editando canal', err);
     }
-  } catch (err) {
-    return { reply: `N-no pude crear el canal del ticket ${K.triste()} Error: ${err.message}`, done: true };
   }
 
   return { reply: pick([
@@ -2362,30 +2354,16 @@ async function flowReclutarPostular(step, data, message) {
 }
 
 async function execReclutarPostular(data, message) {
-  // El canal temporal se crea en el servidor de LECTORES (donde está el candidato)
-  const readerGuildId = process.env.DISCORD_READER_GUILD_ID || message.guildId;
-  if (!readerGuildId) return { reply: `No encontré el servidor de lectores configurado ${K.triste()}`, done: true };
+  const total = Reclutamiento.list().length + 1;
+  const nombreFijo = data.nombreRecluId ? data.nombreRecluId : `r-${String(total).padStart(2, '0')}`;
+  const canalNombre = `${nombreFijo}-${message.author.username.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 15)}`;
 
-  const total       = Reclutamiento.list().length + 1;
-  const canalNombre = `postulacion-${String(total).padStart(3, '0')}-${message.author.username.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 15)}`;
-
-  let canal;
-  try {
-    const { ChannelType, PermissionFlagsBits } = require('discord.js');
-    const readerGuild = await message.client.guilds.fetch(readerGuildId);
-    canal = await readerGuild.channels.create({
-      name:  canalNombre,
-      type:  ChannelType.GuildText,
-      topic: `Postulación de ${message.author.username} — ${ROLES_RECLU[data.rolInteres]}`,
-      permissionOverwrites: [
-        { id: readerGuild.roles.everyone.id, deny:  [PermissionFlagsBits.ViewChannel] },
-        // El candidato puede ver y escribir en su propio canal
-        { id: message.author.id,            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
-        { id: message.client.user.id,       allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
-      ],
-    });
-  } catch (err) {
-    return { reply: `N-no pude crear el canal de postulación ${K.triste()} Error: ${err.message}`, done: true };
+  let canalTemporal = null;
+  if (data.canalTemporalId) {
+    canalTemporal = message.channel;
+    if (canalTemporal && canalTemporal.id === data.canalTemporalId) {
+      await canalTemporal.edit({ name: canalNombre }).catch(() => {});
+    }
   }
 
   const solicitud = Reclutamiento.create({
@@ -2396,7 +2374,7 @@ async function execReclutarPostular(data, message) {
     disponibilidad:  data.disponibilidad,
     motivacion:      data.motivacion,
     proyectoInteres: data.motivacion,
-    channelId:       canal.id,
+    channelId:       data.canalTemporalId || 'pending',
   });
 
   const dispL     = { menos5: 'Menos de 5h/sem', '5a10': '5-10h/sem', mas10: '+10h/sem' };
@@ -2405,15 +2383,11 @@ async function execReclutarPostular(data, message) {
     ? '\n> 📌 Sin experiencia previa — recordar que enseñamos desde cero.\n> ⚠️ Recordar que el trabajo no es remunerado.'
     : '\n> ⚠️ Recordar que el trabajo no es remunerado.';
 
-  // ── Enviar resumen al canal de avisos de reclutamiento del staff CON botón ──
   const tasksChannelId = process.env.RECRUIT_ALERTS_CHANNEL_ID || process.env.TASKS_CHANNEL_ID;
   const staffGuildId   = process.env.DISCORD_GUILD_ID;
   if (tasksChannelId && staffGuildId) {
     try {
       const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-      // Buscar el canal a través del guild de staff explícitamente
-      // (no usar client.channels.fetch porque puede no tener el canal cacheado
-      //  cuando el comando se ejecuta desde el servidor de lectores)
       const staffGuild = await message.client.guilds.fetch(staffGuildId);
       const tasksCanal = await staffGuild.channels.fetch(tasksChannelId);
 
@@ -2422,7 +2396,7 @@ async function execReclutarPostular(data, message) {
           `📋 **Nueva postulación** — **${message.author.username}**${notaExtra}\n` +
           `**Rol:** ${ROLES_RECLU[data.rolInteres]} | **Exp:** ${expL[data.experiencia]} | **Disp:** ${dispL[data.disponibilidad]}\n` +
           `**Motivación:** ${data.motivacion}\n` +
-          `**Canal del candidato (lectores):** ${canal}`;
+          `**Canal del candidato:** <#${data.canalTemporalId}>`;
 
         const row = new ActionRowBuilder().addComponents(
           new ButtonBuilder()
@@ -2435,26 +2409,23 @@ async function execReclutarPostular(data, message) {
             .setStyle(ButtonStyle.Danger),
         );
 
-        await tasksCanal.send({
-          content: resumen,
-          components: [row],
-        });
+        await tasksCanal.send({ content: resumen, components: [row] });
       }
     } catch (err) {
-      // Loguear el error para poder diagnosticar si vuelve a fallar
-      console.error('[Reclutamiento] Error enviando resumen al canal de tareas:', err.message);
+      console.error('[Reclutamiento] Error enviando alerta al staff:', err.message);
     }
   }
 
-  // ── Mensaje inicial al candidato en su canal temporal ──
-  await canal.send(pick([
-    `¡Hola **${message.author.username}**! ${K.feliz()} Recibí tu postulación para **${ROLES_RECLU[data.rolInteres]}**. Ya le avisé al equipo y alguien se pondrá en contacto contigo aquí pronto. ¡Paciencia y mucha suerte!`,
-    `¡Tu postulación está en manos del equipo! ${K.feliz()} En cuanto alguien del staff la revise, te escribirán aquí mismo. ¡Ánimo!`,
-  ]));
+  if (canalTemporal) {
+    await canalTemporal.send(pick([
+      `¡Hola **${message.author.username}**! ${K.feliz()} Recibí tu postulación para **${ROLES_RECLU[data.rolInteres]}**. Ya le avisé al equipo y alguien se pondrá en contacto contigo aquí pronto. ¡Paciencia y mucha suerte!`,
+      `¡Tu postulación está en manos del equipo! ${K.feliz()} En cuanto alguien del staff la revise, te escribirán aquí mismo. ¡Ánimo!`,
+    ]));
+  }
 
   return { reply: pick([
-    `¡Tu postulación fue enviada! ${K.feliz()} Te creé un canal privado donde el staff se comunicará contigo. ¡Mucha suerte!`,
-    `¡Todo listo! ${K.feliz()} Revisa el canal ${canal} — ahí el equipo te contactará pronto.`,
+    `¡Tu postulación fue enviada y registrada con éxito! ${K.feliz()} ¡Mucha suerte!`,
+    `¡Todo listo! ${K.feliz()} El equipo ya tiene tu perfil y te hablarán pronto.`,
   ]), done: true };
 }
 
@@ -2893,4 +2864,93 @@ async function handleReclutamientoButton(interaction) {
   return false;
 }
 
+// ── NUEVOS FLUJOS DE BOTONES (V4) ─────────────────────────────────────────────
+async function startTicketButtonFlow(interaction) {
+  await interaction.deferReply({ ephemeral: true });
+
+  const staffGuildId = process.env.DISCORD_GUILD_ID;
+  if (!staffGuildId) return interaction.editReply(`No hay servidor de staff configurado ${K.triste()}`);
+
+  let staffGuild;
+  try { staffGuild = await interaction.client.guilds.fetch(staffGuildId); }
+  catch { return interaction.editReply(`No pude acceder al staff ${K.triste()}`); }
+
+  const { ChannelType, PermissionFlagsBits } = require('discord.js');
+  let canal;
+  try {
+    const randomId = Math.random().toString(36).substring(2, 6);
+    canal = await staffGuild.channels.create({
+      name: `ticket-${randomId}`,
+      type: ChannelType.GuildText,
+      topic: `Ticket temporal de ${interaction.user.username}`,
+      permissionOverwrites: [
+        { id: staffGuild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+        { id: MOD_ROLE_ID, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
+        { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
+        { id: interaction.client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
+      ],
+    });
+  } catch (err) {
+    return interaction.editReply(`No pude crear tu canal. ${err.message}`);
+  }
+
+  await interaction.editReply(`✅ Creado: <#${canal.id}> ${K.feliz()}`);
+
+  setSession(interaction.user.id, {
+    intent: 'ticket.abrir',
+    step: 'awaitProyecto',
+    data: { canalTemporalId: canal.id },
+    guildId: canal.guildId,
+    channelId: canal.id
+  });
+
+  await canal.send(`¡Hola <@${interaction.user.id}>! ${K.feliz()} Vamos a crear tu ticket. ¿En qué proyecto encontraste el error?`);
+}
+
+async function startReclutamientoButtonFlow(interaction) {
+  await interaction.deferReply({ ephemeral: true });
+
+  const readerGuildId = process.env.DISCORD_READER_GUILD_ID || interaction.guildId;
+  let readerGuild;
+  try { readerGuild = await interaction.client.guilds.fetch(readerGuildId); }
+  catch { return interaction.editReply(`No pude acceder al server ${K.triste()}`); }
+
+  const total = Reclutamiento.list().length + 1;
+  const canalNombre = `r-${String(total).padStart(2, '0')}`;
+
+  const { ChannelType, PermissionFlagsBits } = require('discord.js');
+  let canal;
+  try {
+    canal = await readerGuild.channels.create({
+      name: canalNombre,
+      type: ChannelType.GuildText,
+      topic: `Postulación de ${interaction.user.username}`,
+      permissionOverwrites: [
+        { id: readerGuild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+        { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
+        { id: interaction.client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
+      ],
+    });
+  } catch (err) {
+    return interaction.editReply(`No pude crear tu canal. ${err.message}`);
+  }
+
+  await interaction.editReply(`✅ Creado: <#${canal.id}> ${K.feliz()}`);
+
+  setSession(interaction.user.id, {
+    intent: 'reclutar.postular',
+    step: 'awaitRol',
+    data: { canalTemporalId: canal.id },
+    guildId: canal.guildId,
+    channelId: canal.id
+  });
+
+  await canal.send(pick([
+    `¡Hola <@${interaction.user.id}>! ${K.feliz()} Qué bueno que quieras unirte al equipo. ¿En qué rol te interesa colaborar?\n\`traductor\` · \`cleaner\` · \`typesetter\` · \`qc\` · \`otro\``,
+  ]));
+}
+
 module.exports.handleReclutamientoButton = handleReclutamientoButton;
+module.exports.startTicketButtonFlow = startTicketButtonFlow;
+module.exports.startReclutamientoButtonFlow = startReclutamientoButtonFlow;
+
