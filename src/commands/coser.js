@@ -9,7 +9,7 @@ const { COLORS } = require('../../config/config');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('coser')
-        .setDescription('¡Sua usa sus tijeras mágicas para unir y recortar tus raws! (´｡• ᵕ •｡`)')
+        .setDescription('¡Sua usa sus tijeras mágicas para unir y recortar tus raws! (´｡• ᵕ •｡\`)')
         .addStringOption(option =>
             option.setName('url')
                 .setDescription('Enlace de Gofile, Mediafire, Naver o link directo')
@@ -79,7 +79,7 @@ module.exports = {
             // Ordenar imágenes
             imagePaths.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
-            await interaction.editReply(`¡Tengo ${imagePaths.length} imágenes! (´｡• ᵕ •｡`) Empezando a coser...`);
+            await interaction.editReply(`¡Tengo ${imagePaths.length} imágenes! (´｡• ᵕ •｡\`) Empezando a coser...`);
 
             // Fase de Procesamiento (Motor Sua-Coser Ultra-Lite)
             const resultBuffers = await coser.process(imagePaths);
@@ -110,7 +110,7 @@ module.exports = {
                     { name: '🖼️ Resultado', value: `${resultBuffers.length} recortes`, inline: true },
                     { name: '📏 Ajustes', value: `${enforcedWidth}px de ancho`, inline: true }
                 )
-                .setFooter({ text: 'Hecho con amor por Sua (´｡• ᵕ •｡`)' })
+                .setFooter({ text: 'Hecho con amor por Sua (´｡• ᵕ •｡\`)' })
                 .setTimestamp();
 
             // Límite de 25MB
