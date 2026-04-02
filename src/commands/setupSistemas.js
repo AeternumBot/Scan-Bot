@@ -21,12 +21,12 @@ async function execute(interaction) {
   if (sub === 'tickets') {
     const embed = new EmbedBuilder()
       .setColor(COLORS.warning)
-      .setTitle('🎫 Reportar un Error en un Capítulo')
+      .setTitle('🎫 ¡A-ayuda! Reportar un Error')
       .setDescription(
-        'Si encontraste algún error en nuestros capítulos (globos en blanco, tiras cortadas, mal organizadas u otros problemas), puedes *abrir un ticket* para que lo arreglemos.\n\n' +
-        'Haz clic en el botón de abajo para que Sua te asista de forma privada en un canal exclusivo.'
+        'E-esto... hola. (〃>_<;〃) Si encontraste algún problemita en los capítulos, como globos vacíos o páginas que se ven cortadas, ¡por favor avísame!\n\n' +
+        'No quiero que nadie tenga una mala experiencia leyendo... (´；ω；`) Así que si presionas el botón de abajo, Sua te creará un canal privado para que me cuentes qué pasó y lo arreglemos juntitos. (◕‿◕✿)'
       )
-      .setThumbnail('https://i.imgur.com/example.png'); // Puedes cambiar esta imagen lgtm
+      .setImage('https://media1.tenor.com/m/DhZaHLNdMGAAAAAC/marin-kitagawa.gif');
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -36,23 +36,29 @@ async function execute(interaction) {
         .setStyle(ButtonStyle.Primary)
     );
 
-    await interaction.channel.send({ embeds: [embed], components: [row] });
-    await interaction.reply({ content: '✅ Panel de tickets creado con éxito en este canal.', ephemeral: true });
+    // Mención a everyone y envío del panel
+    await interaction.channel.send({ 
+      content: '@everyone — 📢 ¡Sua al reporte! (〃ω〃)', 
+      embeds: [embed], 
+      components: [row] 
+    });
+    return interaction.reply({ content: '✅ Panel de tickets creado con éxito en este canal con mucha personalidad. (〃ω〃)', ephemeral: true });
   }
 
   if (sub === 'reclutamiento') {
     const embed = new EmbedBuilder()
       .setColor(COLORS.info)
-      .setTitle('📝 ¡Únete al equipo de Aeternum Translations!')
+      .setTitle('📝 ¡Sua busca nuevos amigos para el equipo!')
       .setDescription(
-        '¿Quieres formar parte de nuestro scan y ayudarnos a traer más capítulos? Buscamos:\n' +
-        '▸ Traductores\n' +
-        '▸ Cleaners y Redibujadores\n' +
-        '▸ Typesetters\n' +
-        '▸ Control de Calidad (QC)\n\n' +
-        '¡Enseñamos desde cero! Presiona el botón de abajo para abrir tu canal de postulación. Sua te hará un par de preguntas para conocerte.'
+        '¡H-hola! (´ ∀ ` *) ¿Te gustaría ayudarnos en Aeternum Translations? ¡Me haría muchísima ilusión trabajar contigo! (〃ω〃)\n\n' +
+        'Buscamos personitas con ganas de aprender para ser:\n' +
+        '▸ **Traductores** (¡los que pasan el texto!)\n' +
+        '▸ **Cleaners / Redibujadores** (¡los que limpian las páginas!)\n' +
+        '▸ **Typesetters** (¡los que ponen las letras bonitas!)\n' +
+        '▸ **Control de Calidad (QC)** (¡los que revisan que todo esté perfecto!)\n\n' +
+        '¡N-no tengas miedo si no sabes nada! (〃>_<;〃) Aquí te enseñaremos con mucho cariño desde cero. ¡Dale al botón y hablemos! (◕‿◕✿)'
       )
-      .setThumbnail('https://i.imgur.com/example2.png');
+      .setImage('https://media1.tenor.com/m/fAS0_kCyse8AAAAC/chou-kaguya-hime-kaguya-hime.gif');
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -62,8 +68,12 @@ async function execute(interaction) {
         .setStyle(ButtonStyle.Success)
     );
 
-    await interaction.channel.send({ embeds: [embed], components: [row] });
-    await interaction.reply({ content: '✅ Panel de reclutamiento creado con éxito en este canal.', ephemeral: true });
+    await interaction.channel.send({ 
+      content: '@everyone — 🌸 ¡Únete a nuestra familia! (〃ω〃)', 
+      embeds: [embed], 
+      components: [row] 
+    });
+    return interaction.reply({ content: '✅ Panel de reclutamiento creado con éxito en este canal con mucha personalidad. (〃ω〃)', ephemeral: true });
   }
 }
 
