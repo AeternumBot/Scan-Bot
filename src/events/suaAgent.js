@@ -2185,16 +2185,6 @@ async function flowAusenciaLista(step, data, message) {
 const TIPOS_ERROR_V3 = { globos: 'Globos en blanco', cortadas: 'Tiras cortadas', desorden: 'Mal organizadas', otro: 'Otro' };
 
 async function flowTicketAbrir(step, data, message) {
-  // Check de canal en TODOS los pasos — solo funciona desde el canal de tickets configurado
-  const canalTicketId = process.env.TICKET_CHANNEL_READER_ID;
-  if (canalTicketId && message.channelId !== canalTicketId) {
-    clearSession(message.author.id);
-    return { reply: pick([
-      `E-eh... los reportes de error solo los proceso en <#${canalTicketId}> ${K.timida()} ¡Escríbeme allí!`,
-      `N-no puedo abrir un ticket desde aquí ${K.tranqui()} Ve a <#${canalTicketId}> e inténtalo de nuevo.`,
-    ]), done: true };
-  }
-
   if (step === 'start') {
     if (!data.proyectoId) return { reply: pick([`¿En qué proyecto encontraste el error? ${K.timida()}`, `¿Qué proyecto tiene el problema? ${K.tranqui()}`]), nextStep: 'awaitProyecto' };
     if (!data.capitulo)   return { reply: `¿En qué capítulo está el error? ${K.timida()}`, nextStep: 'awaitCapitulo' };
@@ -2352,19 +2342,7 @@ async function flowTicketLista(step, data, message) {
 const ROLES_RECLU = { traductor: 'Traductor', cleaner: 'Cleaner / Redibujador', typesetter: 'Typer' };
 
 async function flowReclutarPostular(step, data, message) {
-  const canalRecluId = process.env.RECRUIT_CHANNEL_READER_ID;
   const yaActiva = Reclutamiento.getByUsuario(message.author.id);
-  
-  // Check de canal: Solo permitir si está en el canal público O en su canal temporal activo
-  if (canalRecluId && message.channelId !== canalRecluId) {
-    if (!yaActiva || yaActiva.channelId !== message.channelId) {
-      clearSession(message.author.id);
-      return { reply: pick([
-        `E-eh... el proceso de postulación solo funciona en <#${canalRecluId}> ${K.timida()} ¡Escríbeme allí!`,
-        `N-no puedo procesar tu postulación desde aquí ${K.tranqui()} Ve a <#${canalRecluId}> e inténtalo de nuevo.`,
-      ]), done: true };
-    }
-  }
 
   if (yaActiva && message.channelId !== yaActiva.channelId) {
     return { reply: `Ya tienes una postulación pendiente en <#${yaActiva.channelId}> ${K.timida()} Escríbeme por allá.`, done: true };
@@ -2972,9 +2950,9 @@ async function startTicketButtonFlow(interaction) {
   const { ChannelType, PermissionFlagsBits } = require('discord.js');
   let canal;
   try {
-    const randomId = Math.random().toString(36).substring(2, 6);
+    const nombreUsuario = interaction.user.username.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 20);
     canal = await staffGuild.channels.create({
-      name: `ticket-${randomId}`,
+      name: `ticket-${nombreUsuario}`,
       type: ChannelType.GuildText,
       topic: `Ticket temporal de ${interaction.user.username}`,
       permissionOverwrites: [
@@ -3009,14 +2987,12 @@ async function startReclutamientoButtonFlow(interaction) {
   try { readerGuild = await interaction.client.guilds.fetch(readerGuildId); }
   catch { return interaction.editReply(`No pude acceder al server ${K.triste()}`); }
 
-  const total = Reclutamiento.list().length + 1;
-  const canalNombre = `r-${String(total).padStart(2, '0')}`;
-
   const { ChannelType, PermissionFlagsBits } = require('discord.js');
   let canal;
   try {
+    const nombreUsuario = interaction.user.username.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 20);
     canal = await readerGuild.channels.create({
-      name: canalNombre,
+      name: `r-${nombreUsuario}`,
       type: ChannelType.GuildText,
       topic: `Postulación de ${interaction.user.username}`,
       permissionOverwrites: [
