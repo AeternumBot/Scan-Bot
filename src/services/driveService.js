@@ -71,6 +71,8 @@ async function listFolder(folderId) {
     fields: 'files(id, name, mimeType, size, modifiedTime)',
     pageSize: 1000,
     orderBy: 'name',
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
   });
   return res.data.files || [];
 }
@@ -112,6 +114,8 @@ async function createFolder(name, parentId) {
     q: `'${parentId}' in parents and trashed = false and mimeType = 'application/vnd.google-apps.folder' and name = '${name.replace(/'/g, "\\'")}'`,
     fields: 'files(id, name)',
     pageSize: 1,
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
   });
 
   if (existing.data.files && existing.data.files.length > 0) {
@@ -125,6 +129,7 @@ async function createFolder(name, parentId) {
       parents: [parentId],
     },
     fields: 'id, name',
+    supportsAllDrives: true,
   });
 
   return res.data;
@@ -154,6 +159,7 @@ async function uploadFile(fileName, buffer, mimeType, parentId) {
       body: stream,
     },
     fields: 'id, name',
+    supportsAllDrives: true,
   });
 
   return res.data;
@@ -165,7 +171,7 @@ async function uploadFile(fileName, buffer, mimeType, parentId) {
  */
 async function deleteFile(fileId) {
   const drive = getDriveClient();
-  await drive.files.delete({ fileId });
+  await drive.files.delete({ fileId, supportsAllDrives: true });
 }
 
 /**
