@@ -197,8 +197,11 @@ async function processRawsUpload(message) {
   if (!parsed) {
     await message.reply(
       `❌ Nombre de archivo inválido: \`${attachment.name}\`\n` +
-      `El formato esperado es **\`NombreProyecto - NumeroCapitulo.zip\`**\n` +
-      `Ejemplo: \`Sin Reinicio - 07.zip\``
+      `Formatos aceptados:\n` +
+      `▸ \`NombreProyecto - NumeroCapitulo.zip\`\n` +
+      `▸ \`NombreProyecto_NumeroCapitulo.zip\`\n` +
+      `▸ \`NombreProyecto-NumeroCapitulo.zip\`\n` +
+      `Ejemplo: \`La_Joven_Rebelde_31.zip\` o \`Sin Reinicio - 07.zip\``
     );
     return;
   }
@@ -303,11 +306,12 @@ function parseZipName(filename) {
   // Normalizar guiones bajos a espacios: Discord (o algunos SO) reemplaza
   // los espacios del nombre de archivo con '_' al subir el adjunto.
   // «La_Joven_Rebelde_-_31.zip» → «La Joven Rebelde - 31.zip»
+  // «La_Joven_Rebelde_31.zip»   → «La Joven Rebelde 31»
   const normalized = path.basename(filename, '.zip')
     .replace(/_/g, ' ')
     .trim();
 
-  // Separador con espacios: "Nombre - 07"
+  // Patrón 1 — separador con espacios: "Nombre - 07"
   const matchSpaced = normalized.match(/^(.+?)\s+-\s+(\d+(?:\.\d+)?)$/);
   if (matchSpaced) {
     return {
@@ -316,12 +320,22 @@ function parseZipName(filename) {
     };
   }
 
-  // Separador sin espacios: "Nombre-07"
+  // Patrón 2 — separador con guión sin espacios: "Nombre-07"
   const matchDash = normalized.match(/^(.+?)-(\d+(?:\.\d+)?)$/);
   if (matchDash) {
     return {
       projectName: matchDash[1].trim(),
       chapterNum:  matchDash[2].trim(),
+    };
+  }
+
+  // Patrón 3 — solo espacio antes del número: "Nombre 07"
+  // Cubre el caso La_Joven_Rebelde_31 → «La Joven Rebelde 31»
+  const matchSpace = normalized.match(/^(.+?)\s+(\d+(?:\.\d+)?)$/);
+  if (matchSpace) {
+    return {
+      projectName: matchSpace[1].trim(),
+      chapterNum:  matchSpace[2].trim(),
     };
   }
 
