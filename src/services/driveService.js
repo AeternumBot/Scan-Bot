@@ -28,32 +28,53 @@ const STAGE_FOLDERS = ['Raw', 'Clean', 'Tradu', 'Final'];
 let _drive = null;
 
 // ── Cliente de Drive ──────────────────────────────────────────────────────────
-// IMPORTANTE: scope cambiado de 'drive.readonly' a 'drive' para poder escribir.
-// Esto requiere que la cuenta de servicio tenga rol Editor en la carpeta de Drive
-// (no solo Lector). Ver README para instrucciones de cómo cambiar eso en Drive.
+// Prioridad:
+//   1. OAuth2 con refresh token (GOOGLE_REFRESH_TOKEN en env) → usa la cuenta real
+//      del propietario del Drive. Necesario para subir archivos en Drive personal
+//      (las Service Accounts no tienen cuota y no pueden subir a Mi Unidad).
+//   2. Service Account → fallback para lectura y casos con Shared Drive.
 
 function getDriveClient() {
   if (_drive) return _drive;
 
-  const keyValue = process.env.GOOGLE_SERVICE_ACCOUNT_KEY || './config/google-credentials.json';
-  let auth;
+  const refreshToken  = process.env.GOOGLE_REFRESH_TOKEN;
+  const clientId      = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret  = process.env.GOOGLE_CLIENT_SECRET;
 
-  if (keyValue.trim().startsWith('{')) {
-    const credentials = JSON.parse(keyValue);
-    auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/drive'],
-    });
+  if (refreshToken && clientId && clientSecret) {
+    // ── OAuth2 con la cuenta real del usuario ─────────────────────────────
+    const oauth2 = new google.auth.OAuth2(
+      clientId,
+      clientSecret,
+      'http://localhost:3001/callback'   // redirect URI usado al generar el token
+    );
+    oauth2.setCredentials({ refresh_token: refreshToken });
+    _drive = google.drive({ version: 'v3', auth: oauth2 });
+    logger.info('Drive', 'Autenticado con OAuth2 (cuenta de usuario)');
   } else {
-    const keyPath = path.resolve(keyValue);
-    if (!fs.existsSync(keyPath)) throw new Error(`Credenciales no encontradas en: ${keyPath}`);
-    auth = new google.auth.GoogleAuth({
-      keyFile: keyPath,
-      scopes: ['https://www.googleapis.com/auth/drive'],
-    });
+    // ── Service Account (fallback) ────────────────────────────────────────
+    const keyValue = process.env.GOOGLE_SERVICE_ACCOUNT_KEY || './config/google-credentials.json';
+    let auth;
+
+    if (keyValue.trim().startsWith('{')) {
+      const credentials = JSON.parse(keyValue);
+      auth = new google.auth.GoogleAuth({
+        credentials,
+        scopes: ['https://www.googleapis.com/auth/drive'],
+      });
+    } else {
+      const keyPath = path.resolve(keyValue);
+      if (!fs.existsSync(keyPath)) throw new Error(`Credenciales no encontradas en: ${keyPath}`);
+      auth = new google.auth.GoogleAuth({
+        keyFile: keyPath,
+        scopes: ['https://www.googleapis.com/auth/drive'],
+      });
+    }
+
+    _drive = google.drive({ version: 'v3', auth });
+    logger.info('Drive', 'Autenticado con Service Account');
   }
 
-  _drive = google.drive({ version: 'v3', auth });
   return _drive;
 }
 
