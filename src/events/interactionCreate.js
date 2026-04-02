@@ -8,14 +8,26 @@ module.exports = {
   async execute(interaction) {
     // ── Botones ────────────────────────────────────────────────────────────
     if (interaction.isButton()) {
-      // Botones de reclutamiento
+      const suaAgent = require('./suaAgent');
+      
+      // Botones de inicio de flujos conversacionales
+      if (interaction.customId === 'btn_crear_ticket') {
+        try { return await suaAgent.startTicketButtonFlow(interaction); } 
+        catch (err) { logger.error('Button', `Error ticket flow: ${err.message}`); }
+      }
+      
+      if (interaction.customId === 'btn_crear_reclutamiento') {
+        try { return await suaAgent.startReclutamientoButtonFlow(interaction); } 
+        catch (err) { logger.error('Button', `Error reclu flow: ${err.message}`); }
+      }
+
+      // Botones de reclutamiento (staff)
       if (
         interaction.customId.startsWith('reclu_leido_') ||
         interaction.customId.startsWith('reclu_cancelar_') ||
         interaction.customId.startsWith('reclu_confirmar_cancelar_') ||
         interaction.customId.startsWith('reclu_no_cancelar_')
       ) {
-        const suaAgent = require('./suaAgent');
         try {
           await suaAgent.handleReclutamientoButton(interaction);
         } catch (err) {

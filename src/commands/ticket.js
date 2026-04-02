@@ -24,10 +24,10 @@ function isMod(member) {
 }
 
 const TIPOS_ERROR = {
-  mal_subido: 'Mal subido (páginas faltantes o duplicadas)',
-  desorden:   'Desorden de páginas',
-  no_carga:   'No carga / Error 404',
-  otro:       'Otro',
+  globos:   'Globos en blanco',
+  cortadas: 'Tiras cortadas',
+  desorden: 'Mal organizadas / Desorden',
+  otro:     'Otro',
 };
 
 const data = new SlashCommandBuilder()
@@ -45,10 +45,10 @@ const data = new SlashCommandBuilder()
       .addStringOption(o =>
         o.setName('error').setDescription('Tipo de error').setRequired(true)
           .addChoices(
-            { name: 'Mal subido (páginas faltantes o duplicadas)', value: 'mal_subido' },
-            { name: 'Desorden de páginas',                         value: 'desorden'   },
-            { name: 'No carga / Error 404',                        value: 'no_carga'   },
-            { name: 'Otro',                                        value: 'otro'       },
+            { name: 'Globos en blanco',             value: 'globos'   },
+            { name: 'Tiras cortadas',               value: 'cortadas' },
+            { name: 'Mal organizadas o desorden',   value: 'desorden' },
+            { name: 'Otro problema parecido',       value: 'otro'     },
           )
       )
       .addStringOption(o =>
