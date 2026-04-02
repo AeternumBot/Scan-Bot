@@ -47,8 +47,6 @@ function applyBotConfig() {
   }
 }
 
-module.exports.applyBotConfig = applyBotConfig;
-
 const data = new SlashCommandBuilder()
   .setName('configurar')
   .setDescription('Panel de configuración del bot (solo admins)')
@@ -423,4 +421,4 @@ async function handleEstancado(interaction) {
   });
 }
 
-module.exports = { data, execute, autocomplete };
+module.exports = { data, execute, autocomplete, applyBotConfig };
