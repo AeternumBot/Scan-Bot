@@ -54,8 +54,7 @@ async function execute(interaction) {
         'Buscamos personitas con ganas de aprender para ser:\n' +
         '▸ **Traductores** (¡los que pasan el texto!)\n' +
         '▸ **Cleaners / Redibujadores** (¡los que limpian las páginas!)\n' +
-        '▸ **Typesetters** (¡los que ponen las letras bonitas!)\n' +
-        '▸ **Control de Calidad (QC)** (¡los que revisan que todo esté perfecto!)\n\n' +
+        '▸ **Typer** (¡los que ponen las letras bonitas!)\n\n' +
         '¡N-no tengas miedo si no sabes nada! (〃>_<;〃) Aquí te enseñaremos con mucho cariño desde cero. ¡Dale al botón y hablemos! (◕‿◕✿)'
       )
       .setImage('https://media.tenor.com/fAS0_kCyse8AAAAC/tenor.gif');

@@ -28,9 +28,7 @@ function isMod(member) {
 const ROLES_POSTULACION = {
   traductor:  'Traductor',
   cleaner:    'Cleaner / Redibujador',
-  typesetter: 'Typesetter',
-  qc:         'Control de Calidad (QC)',
-  otro:       'Otro',
+  typesetter: 'Typer',
 };
 
 const data = new SlashCommandBuilder()
@@ -44,9 +42,7 @@ const data = new SlashCommandBuilder()
           .addChoices(
             { name: 'Traductor',                value: 'traductor'  },
             { name: 'Cleaner / Redibujador',    value: 'cleaner'    },
-            { name: 'Typesetter',               value: 'typesetter' },
-            { name: 'Control de Calidad (QC)',  value: 'qc'         },
-            { name: 'Otro',                     value: 'otro'       },
+            { name: 'Typer',                    value: 'typesetter' },
           )
       )
       .addStringOption(o =>

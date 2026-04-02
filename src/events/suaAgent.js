@@ -161,6 +161,7 @@ function detectIntent(text) {
   if (/da(r|le)?.{0,6}rol|asigna(r|le)?.{0,6}rol|pone(r|le)?.{0,6}rol|da(r|le)?.{0,6}cargo/.test(t)) return 'mod.darRol';
   if (/quita(r|le)?.{0,6}rol|saca(r|le)?.{0,6}rol|remov(er|e).{0,6}rol|quita(r|le)?.{0,6}cargo/.test(t)) return 'mod.quitarRol';
   if (/borra(r)?|limpia(r)?|vacia(r)?|purg(ar)?|elimina(r)?.{0,10}mensaje/.test(t)) return 'mod.purge';
+  if (/entrevista terminada|cierra (la )?entrevista|termina (la )?entrevista|cierra (el )?ticket|ticket terminado|vaciado de ticket/.test(t)) return 'mod.cerrarCanalPrivado';
 
   // ── Proyectos ────────────────────────────────────────────────────────────
   if (/agrega(r|me)?.{0,8}proyecto|registra(r|me)?.{0,8}proyecto|a[nn]ade?.{0,8}proyecto|mete(r)?.{0,8}proyecto|nuevo proyecto|proyecto nuevo/.test(t)) return 'proyecto.add';
@@ -2348,36 +2349,38 @@ async function flowTicketLista(step, data, message) {
 // FLUJOS V3 — RECLUTAMIENTO
 // ────────────────────────────────────────────────────────────────────────────
 
-const ROLES_RECLU = { traductor: 'Traductor', cleaner: 'Cleaner / Redibujador', typesetter: 'Typesetter', qc: 'Control de Calidad (QC)', otro: 'Otro' };
+const ROLES_RECLU = { traductor: 'Traductor', cleaner: 'Cleaner / Redibujador', typesetter: 'Typer' };
 
 async function flowReclutarPostular(step, data, message) {
-  // Check de canal en TODOS los pasos — incluyendo sesiones activas
   const canalRecluId = process.env.RECRUIT_CHANNEL_READER_ID;
+  const yaActiva = Reclutamiento.getByUsuario(message.author.id);
+  
+  // Check de canal: Solo permitir si está en el canal público O en su canal temporal activo
   if (canalRecluId && message.channelId !== canalRecluId) {
-    // Si había sesión, la cancelamos para no dejar al usuario colgado
-    clearSession(message.author.id);
-    return { reply: pick([
-      `E-eh... el proceso de postulación solo funciona en <#${canalRecluId}> ${K.timida()} ¡Escríbeme allí!`,
-      `N-no puedo procesar tu postulación desde aquí ${K.tranqui()} Ve a <#${canalRecluId}> e inténtalo de nuevo.`,
-    ]), done: true };
+    if (!yaActiva || yaActiva.channelId !== message.channelId) {
+      clearSession(message.author.id);
+      return { reply: pick([
+        `E-eh... el proceso de postulación solo funciona en <#${canalRecluId}> ${K.timida()} ¡Escríbeme allí!`,
+        `N-no puedo procesar tu postulación desde aquí ${K.tranqui()} Ve a <#${canalRecluId}> e inténtalo de nuevo.`,
+      ]), done: true };
+    }
   }
 
-  const yaActiva = Reclutamiento.getByUsuario(message.author.id);
-  if (yaActiva) return { reply: `Ya tienes una postulación pendiente ${K.timida()} El equipo está revisando tu solicitud. ¡Ten paciencia!`, done: true };
+  if (yaActiva && message.channelId !== yaActiva.channelId) {
+    return { reply: `Ya tienes una postulación pendiente en <#${yaActiva.channelId}> ${K.timida()} Escríbeme por allá.`, done: true };
+  }
 
   if (step === 'start') {
     return { reply: pick([
-      `¡Qué bueno que quieras unirte al equipo! ${K.feliz()} Vamos a recopilar tus datos. ¿En qué rol te interesa colaborar?\n\`traductor\` · \`cleaner\` · \`typesetter\` · \`qc\` · \`otro\``,
-      `¡Me alegra mucho! ${K.feliz()} Cuéntame, ¿en qué área te gustaría ayudar?\n\`traductor\` · \`cleaner\` · \`typesetter\` · \`qc\` · \`otro\``,
+      `¡Qué bueno que quieras unirte al equipo! ${K.feliz()} Vamos a recopilar tus datos. ¿En qué rol te interesa colaborar?\n\`traductor\` · \`cleaner\` · \`typer\``,
+      `¡Me alegra mucho! ${K.feliz()} Cuéntame, ¿en qué área te gustaría ayudar?\n\`traductor\` · \`cleaner\` · \`typer\``,
     ]), nextStep: 'awaitRol' };
   }
   if (step === 'awaitRol') {
     const t = message.content.toLowerCase();
     if      (t.includes('tradu'))                            data.rolInteres = 'traductor';
     else if (t.includes('clean') || t.includes('redib'))     data.rolInteres = 'cleaner';
-    else if (t.includes('type') || t.includes('typeset'))    data.rolInteres = 'typesetter';
-    else if (t.includes('qc') || t.includes('calidad'))      data.rolInteres = 'qc';
-    else                                                      data.rolInteres = 'otro';
+    else                                                      data.rolInteres = 'typesetter';
 
     return { reply: pick([
       `¡Anotado! ${K.feliz()} ¿Tienes experiencia previa en **${ROLES_RECLU[data.rolInteres]}**? No te preocupes si no, ¡enseñamos desde cero!`,
@@ -2554,6 +2557,35 @@ async function flowReclutarLista(step, data, message) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// CIERRE CONVERSACIONAL DE CANALES PRIVADOS
+// ────────────────────────────────────────────────────────────────────────────
+async function flowCerrarCanalPrivado(step, data, message) {
+  if (!hasModRole(message.member) && message.author.id !== process.env.VALK_USER_ID) {
+    return { reply: `Solo los miembros del staff pueden cerrar las entrevistas o tickets ${K.timida()}`, done: true };
+  }
+
+  // Buscar si el canal actual pertenece a una postulación
+  const reclu = Reclutamiento.getByChannel(message.channelId);
+  if (reclu) {
+    Reclutamiento.cerrar(reclu.id, message.author.id, 'cerrado');
+    await message.channel.send(`¡Entrevista finalizada! ${K.feliz()} Muchas gracias por tu tiempo, el staff ya tiene tus datos.\n*Este canal se cerrará automáticamente en 10 segundos...*`);
+    setTimeout(() => message.channel.delete('Entrevista finalizada conversacionalmente').catch(() => {}), 10_000);
+    return { done: true };
+  }
+
+  // Buscar si el canal actual pertenece a un ticket
+  const ticket = Tickets.getByChannel(message.channelId);
+  if (ticket) {
+    Tickets.cerrar(ticket.id, message.author.id);
+    await message.channel.send(`¡Ticket finalizado! ${K.feliz()} Muchas gracias por el reporte, hemos tomado nota.\n*Este canal se cerrará automáticamente en 10 segundos...*`);
+    setTimeout(() => message.channel.delete('Ticket finalizado conversacionalmente').catch(() => {}), 10_000);
+    return { done: true };
+  }
+
+  return { reply: `E-eh... no encontré ningún ticket o postulación activa asociada a este canal ${K.timida()}`, done: true };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // ROUTER PRINCIPAL
 // ────────────────────────────────────────────────────────────────────────────
 async function routeIntent(intent, step, data, message) {
@@ -2562,6 +2594,7 @@ async function routeIntent(intent, step, data, message) {
   if (intent === 'mod.darRol')        return flowDarRol(step, data, message);
   if (intent === 'mod.quitarRol')     return flowQuitarRol(step, data, message);
   if (intent === 'mod.purge')         return flowPurge(step, data, message);
+  if (intent === 'mod.cerrarCanalPrivado') return flowCerrarCanalPrivado(step, data, message);
   if (intent === 'proyecto.add')      return flowProyectoAdd(step, data, message);
   if (intent === 'proyecto.remove')   return flowProyectoRemove(step, data, message);
   if (intent === 'proyecto.toggle')   return flowProyectoToggle(step, data, message);
