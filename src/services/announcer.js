@@ -4,6 +4,8 @@
 const { REACTIONS, SOURCES, ANNOUNCEMENT_FOOTER } = require('../../config/config');
 const logger = require('../utils/logger');
 
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
 async function getAnnouncementChannel(client, channelId) {
   if (!channelId) return null;
   const readerGuildId = process.env.DISCORD_READER_GUILD_ID;
@@ -66,7 +68,7 @@ function buildAnnouncementText(project, chapData, options = {}) {
 
   if (ANNOUNCEMENT_FOOTER?.length) {
     lines.push('');
-    ANNOUNCEMENT_FOOTER.forEach(l => lines.push(l));
+    lines.push(pick(ANNOUNCEMENT_FOOTER));
   }
 
   return lines.join('\n');
