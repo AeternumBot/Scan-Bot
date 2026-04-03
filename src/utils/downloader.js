@@ -206,12 +206,45 @@ class DownloaderHub {
                     return btn ? btn.href : null;
                 });
             } else if (url.includes('gofile.io')) {
-                // Gofile es más dinámico, a veces hay que esperar a que los archivos cargen
-                await page.waitForSelector('.mainContent', { timeout: 10000 });
+                // Gofile carga contenido dinámicamente y usa diferentes estructuras
+                // Esperamos a que carguen los elementos de descarga
+                try {
+                    await page.waitForSelector('a[href*="dl.gofile.io"], a[href*="gofile.io/download"]', { timeout: 15000 });
+                } catch (e) {
+                    // Si no encuentra el selector, intentamos con alternativas
+                    console.log('[Downloader] Selector principal no encontrado, intentando alternativos...');
+                }
+
                 downloadUrl = await page.evaluate(() => {
-                    // Esto es aproximado, Gofile cambia mucho
-                    const dlBtn = document.querySelector('a[href*="dl.gofile.io"]');
-                    return dlBtn ? dlBtn.href : null;
+                    // Intentar múltiples selectores para Gofile
+                    const selectors = [
+                        'a[href*="dl.gofile.io"]',
+                        'a[href*="gofile.io/download"]',
+                        '.downloadBtn',
+                        '.download-button',
+                        'a.download',
+                        '#downloadLink',
+                        'a[download]'
+                    ];
+
+                    for (const sel of selectors) {
+                        const el = document.querySelector(sel);
+                        if (el) {
+                            const href = el.href || el.getAttribute('data-href');
+                            if (href) return href;
+                        }
+                    }
+
+                    // Gofile a veces tiene el link en un atributo data-
+                    const allLinks = Array.from(document.querySelectorAll('a[href]'));
+                    for (const link of allLinks) {
+                        const href = link.href;
+                        if (href && (href.includes('dl.gofile.io') || href.includes('download'))) {
+                            return href;
+                        }
+                    }
+
+                    return null;
                 });
             }
 
@@ -239,7 +272,7 @@ class DownloaderHub {
 
         } catch (err) {
             console.error(`[Downloader] Error procesando host ${url}:`, err.message);
-            return [];
+            throw new Error(`No pude descargar desde ${url.includes('gofile.io') ? 'Gofile' : url.includes('mediafire') ? 'Mediafire' : 'el host'}. Puede que la estructura haya cambiado o el archivo no esté disponible.`);
         } finally {
             await browser.close();
         }
