@@ -180,13 +180,26 @@ class DownloaderHub {
     }
 
     /**
-     * Extrae el link de descarga directa de Gofile o Mediafire y lo descarga.
+     * Extrae el link de descarga directa de Mediafire o scrapea imágenes de páginas de capítulos.
      */
     async downloadFromFileHost(url, extractionFolder) {
         const targetDir = path.join(this.tempDir, extractionFolder);
         await fs.mkdir(targetDir, { recursive: true });
 
-        console.log(`[Downloader] Intentando descargar desde hosting: ${url}`);
+        // Si es Mediafire, usamos el método específico
+        if (url.includes('mediafire.com')) {
+            return await this._scrapeMediafire(url, extractionFolder);
+        }
+
+        // Para cualquier otra URL, intentamos scraping genérico de capítulo
+        return await this._scrapeGenericChapter(url, extractionFolder);
+    }
+
+    /**
+     * Mediafire: Extrae el link directo del botón de descarga.
+     */
+    async _scrapeMediafire(url, extractionFolder) {
+        console.log(`[Downloader] Scrapeando Mediafire: ${url}`);
 
         const browser = await puppeteer.launch({
             headless: 'new',
@@ -195,84 +208,153 @@ class DownloaderHub {
 
         try {
             const page = await browser.newPage();
-            await page.goto(url, { waitUntil: 'networkidle2' });
+            await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
 
-            let downloadUrl = null;
-
-            if (url.includes('mediafire.com')) {
-                // Mediafire suele tener un botón 'Download' que es un link directo
-                downloadUrl = await page.evaluate(() => {
-                    const btn = document.querySelector('#downloadButton');
-                    return btn ? btn.href : null;
-                });
-            } else if (url.includes('gofile.io')) {
-                // Gofile carga contenido dinámicamente y usa diferentes estructuras
-                // Esperamos a que carguen los elementos de descarga
-                try {
-                    await page.waitForSelector('a[href*="dl.gofile.io"], a[href*="gofile.io/download"]', { timeout: 15000 });
-                } catch (e) {
-                    // Si no encuentra el selector, intentamos con alternativas
-                    console.log('[Downloader] Selector principal no encontrado, intentando alternativos...');
-                }
-
-                downloadUrl = await page.evaluate(() => {
-                    // Intentar múltiples selectores para Gofile
-                    const selectors = [
-                        'a[href*="dl.gofile.io"]',
-                        'a[href*="gofile.io/download"]',
-                        '.downloadBtn',
-                        '.download-button',
-                        'a.download',
-                        '#downloadLink',
-                        'a[download]'
-                    ];
-
-                    for (const sel of selectors) {
-                        const el = document.querySelector(sel);
-                        if (el) {
-                            const href = el.href || el.getAttribute('data-href');
-                            if (href) return href;
-                        }
-                    }
-
-                    // Gofile a veces tiene el link en un atributo data-
-                    const allLinks = Array.from(document.querySelectorAll('a[href]'));
-                    for (const link of allLinks) {
-                        const href = link.href;
-                        if (href && (href.includes('dl.gofile.io') || href.includes('download'))) {
-                            return href;
-                        }
-                    }
-
-                    return null;
-                });
-            }
+            const downloadUrl = await page.evaluate(() => {
+                const btn = document.querySelector('#downloadButton');
+                return btn ? btn.href : null;
+            });
 
             if (!downloadUrl) {
-                throw new Error("No se pudo extraer el link de descarga directa.");
+                throw new Error("No se pudo extraer el link de descarga de Mediafire.");
             }
 
-            console.log(`[Downloader] Link directo extraído: ${downloadUrl}`);
+            console.log(`[Downloader] Link directo: ${downloadUrl}`);
 
-            // Si es un ZIP, lo descargamos y extraemos
             if (downloadUrl.toLowerCase().includes('.zip')) {
                 return await this.downloadAndExtractZip(downloadUrl, extractionFolder);
             } else {
-                // Si es un archivo individual (ej. una imagen suelta en el host)
                 const response = await axios({
                     url: downloadUrl,
                     method: 'GET',
                     responseType: 'arraybuffer'
                 });
-                const fileName = path.basename(new URL(downloadUrl).pathname);
+                const fileName = path.basename(new URL(downloadUrl).pathname) || 'mediafire_file';
                 const filePath = path.join(targetDir, fileName);
                 await fs.writeFile(filePath, response.data);
                 return [filePath];
             }
 
         } catch (err) {
-            console.error(`[Downloader] Error procesando host ${url}:`, err.message);
-            throw new Error(`No pude descargar desde ${url.includes('gofile.io') ? 'Gofile' : url.includes('mediafire') ? 'Mediafire' : 'el host'}. Puede que la estructura haya cambiado o el archivo no esté disponible.`);
+            console.error(`[Downloader] Error en Mediafire: ${err.message}`);
+            throw new Error(`No pude descargar desde Mediafire: ${err.message}`);
+        } finally {
+            await browser.close();
+        }
+    }
+
+    /**
+     * Scraping genérico para páginas de capítulos de manhwa/manga.
+     * Detecta y extrae imágenes de forma automática.
+     */
+    async _scrapeGenericChapter(url, extractionFolder) {
+        console.log(`[Downloader] Scraping genérico de capítulo: ${url}`);
+
+        const browser = await puppeteer.launch({
+            headless: 'new',
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu',
+                '--no-first-run',
+                '--no-zygote',
+                '--single-process'
+            ]
+        });
+
+        try {
+            const page = await browser.newPage();
+            await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+
+            await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+
+            // Detectar imágenes comunes en páginas de manga
+            const imageSources = await page.evaluate(() => {
+                const results = new Set();
+
+                // Selectores comunes en páginas de manga/manhwa
+                const selectors = [
+                    // Omega Scans, MangaDex style
+                    'img[src*="chapter"], img[src*=" manga"], img[src*="manhwa"], img[src*="webtoon"]',
+                    'img[class*="chapter"], img[class*="pages"], img[class*="content"] img',
+                    // Generico - imágenes dentro del contenido del capítulo
+                    '.chapter-content img', '.page-break img', '.wp-manga-chapter-img',
+                    '.container img[class*="img"]:not([src*="logo"]):not([src*="banner"])',
+                    // Mangakakalot, manganato style
+                    'div[style*="center"] img', '.vung-doc img',
+                    // Generic img tags en área de contenido
+                    '#chapter img', '.chapter-img img', '.viewer img',
+                    'img[loading="lazy"]'
+                ];
+
+                selectors.forEach(sel => {
+                    try {
+                        document.querySelectorAll(sel).forEach(img => {
+                            if (img.src && !img.src.includes('logo') && !img.src.includes('banner') &&
+                                !img.src.includes('avatar') && !img.src.includes('icon')) {
+                                results.add(img.src);
+                            }
+                        });
+                    } catch (e) { /* selector inválido, ignorar */ }
+                });
+
+                // Fallback: todas las imágenes grandes en el body
+                if (results.size === 0) {
+                    document.querySelectorAll('img').forEach(img => {
+                        if (img.width > 200 && img.height > 200 &&
+                            !img.src.includes('logo') && !img.src.includes('banner') &&
+                            !img.src.includes('avatar') && !img.src.includes('icon') &&
+                            !img.src.includes('ads') && !img.src.includes('track')) {
+                            results.add(img.src);
+                        }
+                    });
+                }
+
+                return Array.from(results);
+            });
+
+            console.log(`[Downloader] Imágenes detectadas: ${imageSources.length}`);
+
+            if (imageSources.length === 0) {
+                throw new Error("No se encontraron imágenes en la página. El sitio puede requerir login o usar JavaScript complejo.");
+            }
+
+            const downloadedPaths = [];
+            let index = 1;
+
+            for (const src of imageSources) {
+                try {
+                    const response = await axios({
+                        url: src,
+                        method: 'GET',
+                        responseType: 'arraybuffer',
+                        headers: {
+                            'Referer': url,
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                        },
+                        timeout: 30000
+                    });
+
+                    const fileName = `pagina_${index.toString().padStart(3, '0')}.jpg`;
+                    const filePath = path.join(targetDir, fileName);
+
+                    await fs.writeFile(filePath, response.data);
+                    downloadedPaths.push(filePath);
+                    index++;
+
+                    await new Promise(r => setTimeout(r, 150));
+
+                } catch (err) {
+                    console.warn(`[Downloader] Error descargando imagen ${src}: ${err.message}`);
+                }
+            }
+
+            return downloadedPaths;
+
+        } catch (err) {
+            console.error(`[Downloader] Error en scraping genérico: ${err.message}`);
+            throw err;
         } finally {
             await browser.close();
         }

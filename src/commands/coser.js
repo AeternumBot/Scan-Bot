@@ -12,7 +12,7 @@ module.exports = {
         .setDescription('¡Sua usa sus tijeras mágicas para unir y recortar tus raws! (´｡• ᵕ •｡\`)')
         .addStringOption(option =>
             option.setName('url')
-                .setDescription('Enlace de Gofile, Mediafire, Naver o link directo')
+                .setDescription('Enlace de Mediafire o página de capítulo')
                 .setRequired(false))
         .addAttachmentOption(option =>
             option.setName('archivo')
@@ -63,12 +63,11 @@ module.exports = {
                 imagePaths = await downloader.downloadAndExtractZip(attachment.url, batchId);
             } else if (url) {
                 await interaction.editReply('¡Sua está corriendo a buscar tus imágenes! 🏃‍♀️💨');
-                if (url.includes('naver.com')) {
-                    imagePaths = await downloader.scrapeFromNaver(url, batchId);
-                } else if (url.includes('gofile.io') || url.includes('mediafire.com')) {
+                if (url.includes('mediafire.com')) {
                     imagePaths = await downloader.downloadFromFileHost(url, batchId);
                 } else {
-                    imagePaths = await downloader.downloadFromDiscordAttachments([url], batchId);
+                    // scraping genérico para cualquier página de capítulo
+                    imagePaths = await downloader.downloadFromFileHost(url, batchId);
                 }
             }
 
