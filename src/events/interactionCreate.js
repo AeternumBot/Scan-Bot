@@ -25,8 +25,12 @@ module.exports = {
       if (
         interaction.customId.startsWith('reclu_leido_') ||
         interaction.customId.startsWith('reclu_cancelar_') ||
-        interaction.customId.startsWith('reclu_confirmar_cancelar_') ||
-        interaction.customId.startsWith('reclu_no_cancelar_')
+        interaction.customId.startsWith('reclu_confirmar_') ||
+        interaction.customId.startsWith('reclu_no_cancelar_') ||
+        interaction.customId.startsWith('reclu_aceptar_') ||
+        interaction.customId.startsWith('reclu_rechazar_') ||
+        interaction.customId.startsWith('reclu_no_aceptar_') ||
+        interaction.customId.startsWith('reclu_no_rechazar_')
       ) {
         try {
           await suaAgent.handleReclutamientoButton(interaction);

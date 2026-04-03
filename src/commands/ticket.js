@@ -248,7 +248,18 @@ async function handleCerrar(interaction) {
   await interaction.deferReply({ ephemeral: true });
 
   const ticketId = interaction.options.getString('id');
-  const ticket   = Tickets.get(ticketId);
+
+  // Si no proporciona ID, mostrar lista de tickets abiertos
+  if (!ticketId) {
+    const abiertos = Tickets.listAbiertos();
+    if (!abiertos.length) {
+      return interaction.editReply(`¡No hay tickets abiertos! ${pick(['¡Todo en orden! (๑•̀ㅂ•́)و✧', 'Sin tickets pendientes ✨'])}`);
+    }
+    const lista = abiertos.map(t => `• \`${t.id}\` — ${t.proyectoName} Cap.${t.capitulo} (${t.usuarioName})`).join('\n');
+    return interaction.editReply(`**Tickets abiertos:**\n${lista}\n\nUsa \`/ticket cerrar id:ticket_XXX\` para cerrar uno.`);
+  }
+
+  const ticket = Tickets.get(ticketId);
 
   if (!ticket) {
     return interaction.editReply(`No encontré el ticket \`${ticketId}\` ${K.timida()}`);
@@ -271,12 +282,12 @@ async function handleCerrar(interaction) {
     }
   } catch { /* usuario no encontrado */ }
 
-  // Eliminar canal temporal después de 10 segundos
-  const staffGuildId = process.env.DISCORD_GUILD_ID;
-  if (ticket.channelId && staffGuildId) {
+  // Eliminar canal temporal del servidor de lectores (donde se creó)
+  const readerGuildId = process.env.DISCORD_READER_GUILD_ID;
+  if (ticket.channelId && readerGuildId) {
     try {
-      const staffGuild = await interaction.client.guilds.fetch(staffGuildId);
-      const canal = await staffGuild.channels.fetch(ticket.channelId).catch(() => null);
+      const readerGuild = await interaction.client.guilds.fetch(readerGuildId);
+      const canal = await readerGuild.channels.fetch(ticket.channelId).catch(() => null);
       if (canal) {
         await canal.send(pick([
           `✅ Ticket cerrado por <@${interaction.user.id}>. Este canal se eliminará en 10 segundos ${K.tranqui()}`,

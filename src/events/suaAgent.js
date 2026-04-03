@@ -2285,11 +2285,14 @@ async function flowTicketCerrar(step, data, message) {
   if (step === 'start') {
     const idMatch = message.content.match(/ticket_\d{3}/);
     if (idMatch) { data.ticketId = idMatch[0]; return execTicketCerrar(data, message); }
-    return { reply: `¿Cuál es el ID del ticket a cerrar? (ej: \`ticket_001\`) ${K.timida()}`, nextStep: 'awaitId' };
+    const abiertos = Tickets.listAbiertos();
+    if (!abiertos.length) return { reply: `No hay tickets abiertos ${K.tranqui()}`, done: true };
+    const lista = abiertos.map(t => `• \`${t.id}\` — ${t.proyectoName} Cap.${t.capitulo} (${t.usuarioName})`).join('\n');
+    return { reply: `¿Cuál es el ID del ticket a cerrar? ${K.timida()}\n\n**Tickets abiertos:**\n${lista}`, nextStep: 'awaitId' };
   }
   if (step === 'awaitId') {
     const idMatch = message.content.match(/ticket_\d{3}/);
-    if (!idMatch) return { reply: `No reconocí el ID... debe ser \`ticket_XXX\` ${K.disculpa()}` };
+    if (!idMatch) return { reply: `No reconocí el ID... debe ser \`ticket_XXX\` ${K.disculpa()}`, done: true };
     data.ticketId = idMatch[0];
     return execTicketCerrar(data, message);
   }
@@ -2310,10 +2313,11 @@ async function execTicketCerrar(data, message) {
     ])).catch(() => {});
   } catch { /* ok */ }
 
-  const staffGuildId = process.env.DISCORD_GUILD_ID;
-  if (ticket.channelId && staffGuildId) {
+  // Cerrar canal en el servidor de lectores (donde se creó el ticket)
+  const readerGuildId = process.env.DISCORD_READER_GUILD_ID;
+  if (ticket.channelId && readerGuildId) {
     try {
-      const g = await message.client.guilds.fetch(staffGuildId);
+      const g = await message.client.guilds.fetch(readerGuildId);
       const c = await g.channels.fetch(ticket.channelId).catch(() => null);
       if (c) {
         await c.send(`✅ Cerrado por <@${message.author.id}>. Canal eliminándose en 10 segundos ${K.tranqui()}`);
@@ -2358,7 +2362,10 @@ async function flowReclutarPostular(step, data, message) {
     const t = message.content.toLowerCase();
     if      (t.includes('tradu'))                            data.rolInteres = 'traductor';
     else if (t.includes('clean') || t.includes('redib'))     data.rolInteres = 'cleaner';
-    else                                                      data.rolInteres = 'typesetter';
+    else if (t.includes('type') || t.includes('typer'))      data.rolInteres = 'typesetter';
+    else {
+      return { reply: `E-eh... ese rol no existe ${K.timida()} Opciones: \`traductor\` · \`cleaner\` · \`typesetter\``, done: true };
+    }
 
     return { reply: pick([
       `¡Anotado! ${K.feliz()} ¿Tienes experiencia previa en **${ROLES_RECLU[data.rolInteres]}**? No te preocupes si no, ¡enseñamos desde cero!`,
@@ -2434,7 +2441,8 @@ async function execReclutarPostular(data, message) {
 
       if (tasksCanal) {
         const resumen =
-          `📋 **Nueva postulación** — **${message.author.username}**${notaExtra}\n` +
+          `📋 **Nueva postulación** — **${message.author.username}**\n` +
+          `**ID:** \`${solicitud.id}\`${notaExtra}\n` +
           `**Rol:** ${ROLES_RECLU[data.rolInteres]} | **Exp:** ${expL[data.experiencia]} | **Disp:** ${dispL[data.disponibilidad]}\n` +
           `**Motivación:** ${data.motivacion}\n` +
           `**Canal del candidato:** <#${data.canalTemporalId}>`;
@@ -2445,9 +2453,17 @@ async function execReclutarPostular(data, message) {
             .setLabel('✅ Leído — me encargo')
             .setStyle(ButtonStyle.Success),
           new ButtonBuilder()
+            .setCustomId(`reclu_aceptar_${solicitud.id}`)
+            .setLabel('✓ Aceptar')
+            .setStyle(ButtonStyle.Success),
+          new ButtonBuilder()
+            .setCustomId(`reclu_rechazar_${solicitud.id}`)
+            .setLabel('✕ Rechazar')
+            .setStyle(ButtonStyle.Danger),
+          new ButtonBuilder()
             .setCustomId(`reclu_cancelar_${solicitud.id}`)
             .setLabel('❌ Cancelar postulación')
-            .setStyle(ButtonStyle.Danger),
+            .setStyle(ButtonStyle.Secondary),
         );
 
         await tasksCanal.send({ content: resumen, components: [row] });
@@ -2474,11 +2490,14 @@ async function flowReclutarCerrar(step, data, message) {
   if (step === 'start') {
     const idMatch = message.content.match(/recruit_\d+/);
     if (idMatch) { data.solicitudId = idMatch[0]; return { reply: `¿Cuál es el resultado? \`aceptado\` / \`rechazado\` / \`cerrado\` ${K.tranqui()}`, nextStep: 'awaitResultado' }; }
-    return { reply: `¿Cuál es el ID de la postulación? (ej: \`recruit_1234567890\`) ${K.timida()}`, nextStep: 'awaitId' };
+    const pendientes = Reclutamiento.listPendientes();
+    if (!pendientes.length) return { reply: `No hay postulaciones pendientes ${K.tranqui()}`, done: true };
+    const lista = pendientes.map(s => `• \`${s.id}\` — ${s.usuarioName} (${ROLES_RECLU[s.rolInteres]})`).join('\n');
+    return { reply: `¿Cuál es el ID de la postulación? ${K.timida()}\n\n**Postulaciones pendientes:**\n${lista}`, nextStep: 'awaitId' };
   }
   if (step === 'awaitId') {
     const idMatch = message.content.match(/recruit_\d+/);
-    if (!idMatch) return { reply: `No reconocí el ID ${K.disculpa()}` };
+    if (!idMatch) return { reply: `No reconocí el ID ${K.disculpa()}`, done: true };
     data.solicitudId = idMatch[0];
     return { reply: `¿Resultado? \`aceptado\` / \`rechazado\` / \`cerrado\` ${K.tranqui()}`, nextStep: 'awaitResultado' };
   }
@@ -2508,10 +2527,11 @@ async function execReclutarCerrar(data, message) {
     if (u) await u.send(pick(dmMsgs[data.resultado])).catch(() => {});
   } catch { /* ok */ }
 
-  const staffGuildId = process.env.DISCORD_GUILD_ID;
-  if (solicitud.channelId && staffGuildId) {
+  // Cerrar canal en el servidor de lectores (donde se creó)
+  const readerGuildId = process.env.DISCORD_READER_GUILD_ID;
+  if (solicitud.channelId && readerGuildId) {
     try {
-      const g = await message.client.guilds.fetch(staffGuildId);
+      const g = await message.client.guilds.fetch(readerGuildId);
       const c = await g.channels.fetch(solicitud.channelId).catch(() => null);
       if (c) {
         const emoji = data.resultado === 'aceptado' ? '✅' : data.resultado === 'rechazado' ? '❌' : '🔒';
@@ -2824,13 +2844,83 @@ module.exports = {
 // Llamar desde interactionCreate.js: if (interaction.isButton()) suaAgent.handleButton(interaction)
 async function handleReclutamientoButton(interaction) {
   const id = interaction.customId;
-  if (!id.startsWith('reclu_leido_') && !id.startsWith('reclu_cancelar_')) return false;
+  if (!id.startsWith('reclu_leido_') && !id.startsWith('reclu_cancelar_') &&
+      !id.startsWith('reclu_aceptar_') && !id.startsWith('reclu_rechazar_')) return false;
 
-  const solicitudId = id.replace('reclu_leido_', '').replace('reclu_cancelar_', '');
+  const solicitudId = id.replace('reclu_leido_', '').replace('reclu_cancelar_', '')
+                       .replace('reclu_aceptar_', '').replace('reclu_rechazar_', '');
   const solicitud   = Reclutamiento.get(solicitudId);
 
   if (!solicitud || solicitud.estado !== 'pendiente') {
     await interaction.reply({ content: `Esa postulación ya no está pendiente ${K.timida()}`, ephemeral: true });
+    return true;
+  }
+
+  if (id.startsWith('reclu_aceptar_') || id.startsWith('reclu_rechazar_')) {
+    const resultado = id.startsWith('reclu_aceptar_') ? 'aceptado' : 'rechazado';
+    const resultadoLabel = resultado === 'aceptado' ? 'aceptada' : 'rechazada';
+
+    // Confirmación antes de ejecutar
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`reclu_confirmar_${resultado}_${solicitudId}`)
+        .setLabel(`Sí, ${resultadoLabel}`)
+        .setStyle(resultado === 'aceptado' ? ButtonStyle.Success : ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId(`reclu_no_${resultado}_${solicitudId}`)
+        .setLabel('No, cancelar')
+        .setStyle(ButtonStyle.Secondary),
+    );
+    await interaction.reply({
+      content: `¿Estás seguro de marcar esta postulación como **${resultado}**? ${K.timida()} Esto le enviará un DM al usuario.`,
+      components: [row],
+      ephemeral: true,
+    });
+    return true;
+  }
+
+  if (id.startsWith('reclu_confirmar_aceptar_') || id.startsWith('reclu_confirmar_rechazar_')) {
+    const resultado = id.includes('aceptar') ? 'aceptado' : 'rechazado';
+    const resultadoLabel = resultado === 'aceptado' ? 'aceptada' : 'rechazada';
+    Reclutamiento.cerrar(solicitudId, interaction.user.id, resultado);
+
+    const dmMsg = resultado === 'aceptado'
+      ? `¡Hola **${solicitud.usuarioName}**! ${K.feliz()} Tu postulación para **${ROLES_RECLU[solicitud.rolInteres]}** fue **aceptada**. ¡Bienvenido/a al equipo de Aeternum Translations! El staff se comunicará contigo pronto.`
+      : `Hola **${solicitud.usuarioName}** ${K.tranqui()} Gracias por tu interés en Aeternum. Por ahora tu postulación para **${ROLES_RECLU[solicitud.rolInteres]}** no pudo continuar. ¡No te desanimes!`;
+
+    try {
+      const u = await interaction.client.users.fetch(solicitud.usuarioId);
+      if (u) await u.send(dmMsg).catch(() => {});
+    } catch { /* ok */ }
+
+    // Cerrar canal temporal
+    const readerGuildId = process.env.DISCORD_READER_GUILD_ID;
+    if (solicitud.channelId && readerGuildId) {
+      try {
+        const readerGuild = await interaction.client.guilds.fetch(readerGuildId);
+        const c = await readerGuild.channels.fetch(solicitud.channelId);
+        if (c) {
+          await c.send(`🔒 La postulación fue ${resultadoLabel} por el staff. Este canal se cerrará en 15 segundos.`);
+          setTimeout(() => c.delete(`Postulación ${resultadoLabel}`).catch(() => {}), 15_000);
+        }
+      } catch (err) {
+        console.error('[Reclutamiento] Error cerrando canal del candidato:', err.message);
+      }
+    }
+
+    // Editar el mensaje original del canal de alertas
+    try {
+      const emoji = resultado === 'aceptado' ? '🎉' : '❌';
+      await interaction.message.edit({ content: interaction.message.content + `\n\n${emoji} **${resultadoLabel}** por <@${interaction.user.id}>`, components: [] });
+    } catch { /* ok */ }
+
+    await interaction.reply({ content: `Postulación de **${solicitud.usuarioName}** ${resultadoLabel} ${K.feliz()} El usuario fue notificado.`, ephemeral: true });
+    return true;
+  }
+
+  if (id.startsWith('reclu_no_aceptar_') || id.startsWith('reclu_no_rechazar_')) {
+    await interaction.reply({ content: `De acuerdo, la postulación sigue pendiente ${K.tranqui()}`, ephemeral: true });
     return true;
   }
 
@@ -2940,23 +3030,21 @@ async function handleReclutamientoButton(interaction) {
 async function startTicketButtonFlow(interaction) {
   await interaction.deferReply({ ephemeral: true });
 
-  const staffGuildId = process.env.DISCORD_GUILD_ID;
-  if (!staffGuildId) return interaction.editReply(`No hay servidor de staff configurado ${K.triste()}`);
-
-  let staffGuild;
-  try { staffGuild = await interaction.client.guilds.fetch(staffGuildId); }
-  catch { return interaction.editReply(`No pude acceder al staff ${K.triste()}`); }
+  const readerGuildId = process.env.DISCORD_READER_GUILD_ID || interaction.guildId;
+  let readerGuild;
+  try { readerGuild = await interaction.client.guilds.fetch(readerGuildId); }
+  catch { return interaction.editReply(`No pude acceder al servidor ${K.triste()}`); }
 
   const { ChannelType, PermissionFlagsBits } = require('discord.js');
   let canal;
   try {
     const nombreUsuario = interaction.user.username.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 20);
-    canal = await staffGuild.channels.create({
+    canal = await readerGuild.channels.create({
       name: `ticket-${nombreUsuario}`,
       type: ChannelType.GuildText,
-      topic: `Ticket temporal de ${interaction.user.username}`,
+      topic: `Ticket de error de ${interaction.user.username}`,
       permissionOverwrites: [
-        { id: staffGuild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+        { id: readerGuild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
         { id: MOD_ROLE_ID, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
         { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
         { id: interaction.client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
@@ -2976,7 +3064,8 @@ async function startTicketButtonFlow(interaction) {
     channelId: canal.id
   });
 
-  await canal.send(`¡Hola <@${interaction.user.id}>! ${K.feliz()} Vamos a crear tu ticket. ¿En qué proyecto encontraste el error?`);
+  await canal.send(`¡Hola <@${interaction.user.id}>! ${K.feliz()} Vamos a crear tu ticket. ¿En qué proyecto encontraste el error?\n\n` +
+    `**Projetos disponíveis:**\n${Projects.list().slice(0, 10).map(p => `• ${p.name}`).join('\n')}`);
 }
 
 async function startReclutamientoButtonFlow(interaction) {
@@ -3016,7 +3105,7 @@ async function startReclutamientoButtonFlow(interaction) {
   });
 
   await canal.send(pick([
-    `¡Hola <@${interaction.user.id}>! ${K.feliz()} Qué bueno que quieras unirte al equipo. ¿En qué rol te interesa colaborar?\n\`traductor\` · \`cleaner\` · \`typesetter\` · \`qc\` · \`otro\``,
+    `¡Hola <@${interaction.user.id}>! ${K.feliz()} Qué bueno que quieras unirte al equipo. ¿En qué rol te interesa colaborar?\n\`traductor\` · \`cleaner\` · \`typesetter\``,
   ]));
 }
 
