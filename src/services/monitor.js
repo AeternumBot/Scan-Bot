@@ -36,10 +36,34 @@ async function checkProject(project) {
         LastChapters.set(project.id, source, {
           chapterNum: data.chapterNum,
           chapterUrl: data.chapterUrl,
+          detectedAt: new Date().toISOString(),
         });
 
-        // Anuncio automático desactivado — usar /anunciar manualmente
-        await logger.discord(_client, 'info', 'Monitor', `Nuevo cap. detectado: **${project.name}** cap. ${data.chapterNum} [${source}] — pendiente de anuncio manual`);
+        // Notificar en canal de registros
+        const recordsChannelId = process.env.RECORDS_CHANNEL_ID;
+        if (recordsChannelId && _client) {
+          try {
+            const channel = await _client.channels.fetch(recordsChannelId).catch(() => null);
+            if (channel) {
+              const ahora = Date.now();
+              const ultimo = last ? new Date(last.detectedAt || Date.now()).getTime() : null;
+              const diasSinActividad = ultimo ? Math.floor((ahora - ultimo) / 86400000) : null;
+
+              const lines = [
+                `📖 **Nuevo capítulo detectado**`,
+                `> **Proyecto:** ${project.name}`,
+                `> **Capítulo:** ${data.chapterNum}`,
+                `> **Link:** ${data.chapterUrl || project.sources.colorcito}`,
+                diasSinActividad !== null ? `> **Último cap. hace:** ${diasSinActividad} día(s)` : '',
+                `> Usa \`/anunciar\` para publicarlo cuando esté listo.`,
+              ].filter(Boolean).join('\n');
+
+              await channel.send(lines);
+            }
+          } catch (err) {
+            logger.error('Monitor', `Error notificando en registros: ${err.message}`);
+          }
+        }
       }
     } catch (err) {
       logger.error('Monitor', `Error chequeando ${project.name} [${source}]: ${err.message}`);

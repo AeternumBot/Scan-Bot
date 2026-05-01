@@ -120,20 +120,9 @@ async function getLatestChapter(projectUrl) {
       : (firstLinkRealNum || String(highestNum));
 
     // ── Tags / Géneros ────────────────────────────────────────────────────
-    // Intentar segunda petición para los tags si no se encontraron en la primera
-    let tagsHtml = html;
-    const tagsInPage = $('a[href*="gender="]').length;
-    if (!tagsInPage) {
-      try {
-        await new Promise(r => setTimeout(r, 1500));
-        const res2 = await axios.get(projectUrl, { headers: HEADERS, timeout: 15000 });
-        tagsHtml = res2.data;
-      } catch { /* usar html original */ }
-    }
-    const $t = require('cheerio').load(tagsHtml);
     const tags = [];
-    $t('a[href*="gender="]').each((_, el) => {
-      const tag = $t(el).text().trim();
+    $('a[href*="gender="]').each((_, el) => {
+      const tag = $(el).text().trim();
       if (tag) tags.push(tag.toLowerCase());
     });
     const isEcchi = tags.some(t => t.includes('ecchi') || t.includes('erotico') || t.includes('adulto'));

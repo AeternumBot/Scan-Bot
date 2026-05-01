@@ -75,10 +75,6 @@ module.exports = {
     projects:      './data/projects.json',
     lastChapters:  './data/last_chapters.json',
     driveCache:    './data/drive_cache.json',
-    // V3
-    tareas:        './data/tareas.json',
-    ausencias:     './data/ausencias.json',
-    tickets:       './data/tickets.json',
-    reclutamiento: './data/reclutamiento.json',
+
   },
 };

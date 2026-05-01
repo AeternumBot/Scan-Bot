@@ -16,7 +16,7 @@ if (!token || !clientId || !staffGuildId) {
 }
 
 // Comandos que también van al servidor de lectores
-const READER_COMMANDS = ['anunciar', 'avisar', 'rol', 'configurar', 'buscar'];
+const READER_COMMANDS = ['anunciar', 'avisar', 'rol', 'configurar', 'buscar', 'setuplumi'];
 
 const allCommands    = [];
 const readerCommands = [];

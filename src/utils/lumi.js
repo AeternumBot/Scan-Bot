@@ -66,13 +66,7 @@ const LUMI = {
     errorAccion:  (accion)      => `A-ay... no pude ${accion}. ¿Tengo los permisos correctos? ${K.triste()}`,
   },
 
-  // ── Rol (reaction roles) ───────────────────────────────────────────────────
-  rol: {
-    sinRoles:            `...no hay roles vinculados todavía. Usa \`/rol crear\` primero ${K.timida()}`,
-    mensajeActualizado:  `¡Actualicé el mensaje de roles! Ya pueden reaccionar ${K.feliz()}`,
-    noVinculado: (id)  => `No encontré un rol vinculado al proyecto \`${id}\` ${K.disculpa()}`,
-    quitado:     (id)  => `Quité el rol del proyecto \`${id}\` del mensaje ${K.tranqui()}`,
-  },
+
 
 };
 

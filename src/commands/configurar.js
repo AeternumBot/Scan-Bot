@@ -101,56 +101,7 @@ const data = new SlashCommandBuilder()
           .setRequired(true)
       )
   )
-  .addSubcommand(sub =>
-    sub.setName('tareas')
-      .setDescription('Configura el canal de tareas y alertas de estancamiento')
-      .addChannelOption(o =>
-        o.setName('canal')
-          .setDescription('Canal donde Lumi publicará recordatorios de tareas y alertas')
-          .addChannelTypes(ChannelType.GuildText)
-          .setRequired(true)
-      )
-  )
-  .addSubcommand(sub =>
-    sub.setName('registros')
-      .setDescription('Configura el canal de registros generales de Lumi')
-      .addChannelOption(o =>
-        o.setName('canal')
-          .setDescription('Canal para deploys, tickets, postulaciones y ausencias vencidas')
-          .addChannelTypes(ChannelType.GuildText)
-          .setRequired(true)
-      )
-  )
-  .addSubcommand(sub =>
-    sub.setName('ausencias')
-      .setDescription('Configura el canal de registro de ausencias activas')
-      .addChannelOption(o =>
-        o.setName('canal')
-          .setDescription('Canal donde Lumi muestra las ausencias activas del staff')
-          .addChannelTypes(ChannelType.GuildText)
-          .setRequired(true)
-      )
-  )
-  .addSubcommand(sub =>
-    sub.setName('tickets')
-      .setDescription('Configura el canal de tickets de error (servidor de lectores)')
-      .addChannelOption(o =>
-        o.setName('canal')
-          .setDescription('Canal donde los lectores pueden abrir tickets de error')
-          .addChannelTypes(ChannelType.GuildText)
-          .setRequired(true)
-      )
-  )
-  .addSubcommand(sub =>
-    sub.setName('reclutamiento')
-      .setDescription('Configura el canal de reclutamiento')
-      .addChannelOption(o =>
-        o.setName('canal')
-          .setDescription('Canal donde los candidatos se postulan')
-          .addChannelTypes(ChannelType.GuildText)
-          .setRequired(true)
-      )
-  )
+
   .addSubcommand(sub =>
     sub.setName('estancado')
       .setDescription('Configura días de alerta de capítulos estancados para un proyecto')
@@ -209,11 +160,7 @@ async function execute(interaction) {
   if (sub === 'rol')          return handleRol(interaction);
   if (sub === 'verificar')    return handleVerificar(interaction);
   if (sub === 'avisos')       return handleAvisos(interaction);
-  if (sub === 'tareas')        return handleCanalEnv(interaction, 'TASKS_CHANNEL_ID',            'tareas y alertas');
   if (sub === 'registros')     return handleCanalEnv(interaction, 'RECORDS_CHANNEL_ID',           'registros generales');
-  if (sub === 'ausencias')     return handleCanalEnv(interaction, 'ABSENCES_CHANNEL_ID',          'ausencias');
-  if (sub === 'tickets')       return handleCanalEnv(interaction, 'TICKET_CHANNEL_READER_ID',     'tickets de error (lectores)');
-  if (sub === 'reclutamiento') return handleCanalEnv(interaction, 'RECRUIT_CHANNEL_READER_ID',    'reclutamiento (lectores)');
   if (sub === 'estancado')     return handleEstancado(interaction);
   if (sub === 'raws')          return handleCanalEnv(interaction, 'RAWS_CHANNEL_ID', 'raws (subida de zips)');
   if (sub === 'info')          return handleInfo(interaction);
@@ -344,11 +291,7 @@ async function handleInfo(interaction) {
   const channel        = fmt(process.env.ANNOUNCEMENT_CHANNEL_ID);
   const noticeStaff    = fmt(process.env.STAFF_NOTICE_ID);
   const noticeReader   = fmt(process.env.NOTICE_CHANNEL_ID);
-  const canalTareas    = fmt(process.env.TASKS_CHANNEL_ID);
   const canalRegistros = fmt(process.env.RECORDS_CHANNEL_ID);
-  const canalAusencias = fmt(process.env.ABSENCES_CHANNEL_ID);
-  const canalTickets   = fmt(process.env.TICKET_CHANNEL_READER_ID);
-  const canalReclu     = fmt(process.env.RECRUIT_CHANNEL_READER_ID);
   const canalRaws      = fmt(process.env.RAWS_CHANNEL_ID);
 
   const embed = new EmbedBuilder()
@@ -358,11 +301,7 @@ async function handleInfo(interaction) {
       { name: '📢 Anuncios',          value: channel,        inline: true },
       { name: '📣 Avisos staff',      value: noticeStaff,    inline: true },
       { name: '📣 Avisos lectores',   value: noticeReader,   inline: true },
-      { name: '📋 Tareas y alertas',  value: canalTareas,    inline: true },
       { name: '📁 Registros',         value: canalRegistros, inline: true },
-      { name: '🏖️ Ausencias',        value: canalAusencias, inline: true },
-      { name: '🎫 Tickets (lectores)',value: canalTickets,   inline: true },
-      { name: '📋 Reclutamiento',     value: canalReclu,     inline: true },
       { name: '📦 Raws (zips)',       value: canalRaws,      inline: true },
       { name: '📊 Proyectos',         value: `${projects.length} total · ${active} activos`, inline: true },
       { name: '⏱️ Check interval',    value: `Cada ${process.env.CHECK_INTERVAL_MINUTES || 25} min`, inline: true },
@@ -374,11 +313,7 @@ async function handleInfo(interaction) {
       value:
         '`/proyecto add/remove/list/info/toggle/setstatus`\n' +
         '`/status [proyecto]`\n' +
-        '`/configurar canal/reacciones/rol/avisos/tareas/registros/ausencias/tickets/reclutamiento/raws/estancado/verificar/info`\n' +
-        '`/tarea asignar/completar/lista/eliminar`\n' +
-        '`/ausencia pedir/registrar/cancelar/lista`\n' +
-        '`/ticket abrir/cerrar/lista`\n' +
-        '`/reclutar postular/cerrar/lista`\n' +
+        '`/configurar canal/reacciones/rol/avisos/registros/raws/estancado/verificar/info`\n' +
         '`/buscar <nombre> <fuente>` · `/anunciar` · `/avisar` · `/salud` · `/raws espacio/eliminar`',
     })
     .setTimestamp();

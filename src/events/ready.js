@@ -1,7 +1,6 @@
 // src/events/ready.js
 const { Events } = require('discord.js');
 const monitor    = require('../services/monitor');
-const scheduler  = require('../services/scheduler');
 const webhook    = require('../services/webhookServer');
 const logger     = require('../utils/logger');
 const configurar = require('../commands/configurar');
@@ -39,7 +38,6 @@ module.exports = {
 
     // ── Servicios ─────────────────────────────────────────────────────────────
     monitor.start(client);
-    scheduler.start(client);
 
     // Webhook server solo si está configurado el puerto
     if (process.env.WEBHOOK_PORT) {
