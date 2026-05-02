@@ -3,13 +3,14 @@
 
 const { SlashCommandBuilder } = require('discord.js');
 const LUMI = require('../utils/lumi');
+const { K } = require('../utils/lumi');
 const { Projects } = require('../utils/storage');
 const driveService = require('../services/driveService');
 const colorcito = require('../services/colorcito');
 
 const data = new SlashCommandBuilder()
   .setName('salud')
-  .setDescription('Lumi revisa cómo está y te cuenta');
+  .setDescription('Diagnóstico completo del sistema');
 
 async function execute(interaction) {
   await interaction.deferReply();
@@ -20,12 +21,12 @@ async function execute(interaction) {
   // ── 1. Discord ────────────────────────────────────────────────────────────
   const ping = interaction.client.ws.ping;
   if (ping < 200) {
-    checks.push(`✅ Mi conexión con Discord está bien... latencia de **${ping}ms** (っ˘ω˘ς)`);
+    checks.push(`✅ Conexión con Discord estable — **${ping}ms** ${K.social()}`);
   } else if (ping < 500) {
-    checks.push(`⚠️ Mi conexión con Discord está un poco lenta... **${ping}ms** (〃>_<;〃)`);
+    checks.push(`⚠️ Conexión con Discord lenta — **${ping}ms** ${K.hartazgo()} Algo no está del todo bien.`);
     todosBien = false;
   } else {
-    checks.push(`❌ Mi conexión con Discord está muy lenta... **${ping}ms** (;ω;)`);
+    checks.push(`❌ Conexión con Discord muy lenta — **${ping}ms** ${K.triste()} Esto es inaceptable.`);
     todosBien = false;
   }
 
@@ -33,25 +34,25 @@ async function execute(interaction) {
   const varsRequeridas = ['DISCORD_TOKEN', 'DISCORD_CLIENT_ID', 'DISCORD_GUILD_ID', 'GDRIVE_ROOT_FOLDER_ID'];
   const varsFaltantes = varsRequeridas.filter(v => !process.env[v]);
   if (varsFaltantes.length === 0) {
-    checks.push(`✅ Todas mis variables de configuración están en orden (◕‿◕✿)`);
+    checks.push(`✅ Variables de configuración en orden ${K.altiva()}`);
   } else {
-    checks.push(`❌ Me faltan estas variables: \`${varsFaltantes.join(', ')}\` (;ω;)`);
+    checks.push(`❌ Faltan variables: \`${varsFaltantes.join(', ')}\` ${K.triste()} Esto debe corregirse.`);
     todosBien = false;
   }
 
   // ── 3. Google Drive ───────────────────────────────────────────────────────
   try {
     await driveService.listFolder(process.env.GDRIVE_ROOT_FOLDER_ID);
-    checks.push(`✅ Mi conexión con Google Drive está bien (◕‿◕✿)`);
+    checks.push(`✅ Conexión con Google Drive operativa ${K.social()}`);
   } catch (err) {
-    checks.push(`❌ No pude conectarme con Google Drive... (;ω;) \`${err.message}\``);
+    checks.push(`❌ No hay conexión con Google Drive ${K.triste()} \`${err.message}\``);
     todosBien = false;
   }
 
   // ── 4. Proyectos ──────────────────────────────────────────────────────────
   const proyectos = Projects.list();
   const activos = proyectos.filter(p => p.active).length;
-  checks.push(`✅ Tengo **${proyectos.length}** proyecto(s) registrado(s), **${activos}** activo(s) (っ˘ω˘ς)`);
+  checks.push(`✅ **${proyectos.length}** proyecto(s) registrado(s), **${activos}** activo(s) ${K.altiva()}`);
 
   // ── 5. Scrapers ───────────────────────────────────────────────────────────
   const proyectoConColor = proyectos.find(p => p.sources?.colorcito);
@@ -62,13 +63,13 @@ async function execute(interaction) {
         new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000)),
       ]);
       if (result) {
-        checks.push(`✅ El scraper de Colorcito responde bien (◕‿◕✿)`);
+        checks.push(`✅ Scraper de Colorcito respondiendo correctamente ${K.social()}`);
       } else {
-        checks.push(`⚠️ El scraper de Colorcito respondió pero sin datos... (〃>_<;〃)`);
+        checks.push(`⚠️ Scraper de Colorcito respondió pero sin datos ${K.hartazgo()}`);
         todosBien = false;
       }
     } catch {
-      checks.push(`❌ No pude conectarme con Colorcito... (;ω;)`);
+      checks.push(`❌ Sin conexión con Colorcito ${K.triste()}`);
       todosBien = false;
     }
   } else {
@@ -77,12 +78,12 @@ async function execute(interaction) {
 
   // ── Respuesta final ───────────────────────────────────────────────────────
   const intro = todosBien
-    ? `Me revisé bien y... parece que todo está en orden (◕‿◕✿) Me alegra mucho poder decirles eso:\n\n`
-    : `E-eh... me revisé y encontré algunas cosas que no están del todo bien (〃>_<;〃) Se los cuento:\n\n`;
+    ? `Diagnóstico completo. Todo está en orden ${K.altiva()}\n\n`
+    : `Diagnóstico completo. Hay elementos que requieren atención ${K.hartazgo()}\n\n`;
 
   const cierre = todosBien
-    ? `\n*Estaré aquí siempre que me necesiten (っ˘ω˘ς)*`
-    : `\n*Voy a seguir intentando lo mejor que pueda... disculpen las molestias (´• ω •\`)ゞ*`;
+    ? `\n*Sistema operativo al nivel esperado ${K.social()}*`
+    : `\n*Se recomienda revisar los puntos marcados ${K.triste()}*`;
 
   await interaction.editReply({
     content: intro + checks.join('\n') + cierre,

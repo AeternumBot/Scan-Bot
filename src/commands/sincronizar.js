@@ -4,7 +4,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { Projects, LastChapters } = require('../utils/storage');
 const colorcito = require('../services/colorcito');
-const LUMI      = require('../utils/lumi');
+const { K } = require('../utils/lumi');
 
 const data = new SlashCommandBuilder()
   .setName('sincronizar')
@@ -34,7 +34,7 @@ async function execute(interaction) {
   const hasRole  = interaction.member.roles.cache.has(MOD_ROLE)
     || interaction.member.permissions.has('ManageGuild');
   if (!hasRole) {
-    return interaction.editReply({ content: LUMI.sinPermisos });
+    return interaction.editReply({ content: `No tienes permiso para usar este comando ${K.altiva()}` });
   }
 
   const projectId = interaction.options.getString('proyecto');
@@ -43,11 +43,11 @@ async function execute(interaction) {
     : Projects.list().filter(p => p.active);
 
   if (!projects.length) {
-    return interaction.editReply({ content: `No encontré el proyecto... (っ˘ω˘ς)` });
+    return interaction.editReply({ content: `No encontré ese proyecto ${K.hartazgo()}` });
   }
 
   await interaction.editReply({
-    content: `Sincronizando ${projects.length} proyecto(s) en segundo plano... (っ˘ω˘ς) Te aviso cuando termine.`
+    content: `Sincronizando ${projects.length} proyecto(s) en segundo plano ${K.tranqui()} Te aviso cuando termine.`
   });
 
   // Ejecutar en background sin bloquear
@@ -78,15 +78,11 @@ async function execute(interaction) {
 
     try {
       await interaction.followUp({
-        content: `¡Listo! ${K_feliz()} Sincronicé ${projects.length} proyecto(s). ${actualizados > 0 ? `Actualicé **${actualizados}** capítulo(s) que estaban desactualizados.` : 'Todo ya estaba al día.'}`,
+        content: `Sincronización completa ${K.social()} ${projects.length} proyecto(s) revisado(s). ${actualizados > 0 ? `Se actualizaron **${actualizados}** capítulo(s).` : 'Todo ya estaba al día.'}`,
         ephemeral: true,
       });
     } catch { }
   })();
-}
-
-function K_feliz() {
-  return ['(◕‿◕✿)', '(ﾉ◕ヮ◕)ﾉ', '(っ˘ω˘ς)'][Math.floor(Math.random() * 3)];
 }
 
 module.exports = { data, execute, autocomplete };

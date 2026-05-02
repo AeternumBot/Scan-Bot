@@ -1,5 +1,5 @@
 // src/events/lumiAgent.js
-// Agente limitado de Lumi — solo maneja flujos concretos:
+// Agente limitado de Lumi Nums — solo maneja flujos concretos:
 //   1. Tickets de error (canal privado en lectores)
 //   2. Reclutamiento (canal privado en lectores)
 // Solo actúa en el servidor de STAFF o en canales creados por Lumi en LECTORES.
@@ -16,7 +16,7 @@ const sessions = new Map();
 const MOD_ROLE_ID = process.env.MOD_ROLE_ID || '1368818622750789633';
 
 function isMod(member) {
-  return member?.roles?.cache?.has(MOD_ROLE_ID) 
+  return member?.roles?.cache?.has(MOD_ROLE_ID)
     || member?.permissions?.has('ManageGuild');
 }
 
@@ -28,20 +28,32 @@ const TIPOS_ERROR = {
   otro:     'Otro',
 };
 
+// ── Selector de kaomojis de Lumi ──────────────────────────────────────────────
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
+const K = {
+  timida:  () => pick(['( 〃. .〃 )','(๑•́ ₃ •̀๑)','(｡•ㅅ•｡)','(⁄ ⁄>⁄ ▽ ⁄<⁄ ⁄)','(っ. .ς)','(〃ω〃)','(*ノωノ)','(//∇//)','(〃>_<;〃)']),
+  altiva:  () => pick(['(￣^￣)','( ¬ _ ¬ )','(๑˘ ᵕ ˘)','( -_ -)✧','╮(╯_╰)╭','( ≖.≖)','( ๑ `꒳´ )','(｀-´)>','(￣ー￣)','(¬‿¬)']),
+  sonrojo: () => pick(['(///￣ ￣///)','( 💢 〃. 〃 )','(つ 〃/// 〃 )','(>///<)','(≧///≦)','(〃////〃)','(＃>_<)','(*////*)ゞ','(#^.^#)']),
+  social:  () => pick(['(｡･ω･)ﾉﾞ','( - . - ) _旦~','(๑・ω-)～','( ´ ▽ ` )b','(ㅅ´ ˘ `)','(◡‿◡✿)','(●´ω`●)','(。•́‿•̀｡)','(˘▽˘>ʃƪ)']),
+  hartazgo:() => pick(['(＃￣0￣)','(︶皿︶๑)','(눈_눈)','( º _ º )','(ㆆ_ㆆ)','(눈‸눈)','(¬_¬;)','(-‸ლ)','(›_‹)','(ˉ ˘ ˉ；)']),
+  triste:  () => pick(['(｡•ㅅ•｡)','(っ. .ς)','(๑•́ ₃ •̀๑)','( 〃. .〃 )','(。ŕ﹏ŏ)']),
+};
+
 // ── Flujo de TICKET ───────────────────────────────────────────────────────────
 async function iniciarTicket(interaction) {
   await interaction.deferReply({ ephemeral: true });
 
   const readerGuildId = process.env.DISCORD_READER_GUILD_ID;
   if (!readerGuildId) {
-    return interaction.editReply('A-ay... no encuentro mi configuración del servidor de lectores (´；ω；`)');
+    return interaction.editReply(`No encuentro la configuración del servidor de lectores ${K.triste()}`);
   }
 
   let readerGuild;
   try {
     readerGuild = await interaction.client.guilds.fetch(readerGuildId);
   } catch {
-    return interaction.editReply('P-perdón... no pude acceder al servidor de lectores (〃>_<;〃)');
+    return interaction.editReply(`No pude acceder al servidor de lectores ${K.triste()}`);
   }
 
   // Verificar que el usuario no tenga ya un ticket abierto
@@ -49,42 +61,44 @@ async function iniciarTicket(interaction) {
     s => s.type === 'ticket' && s.userId === interaction.user.id
   );
   if (yaAbierto) {
-    return interaction.editReply('Y-ya tienes un ticket abierto... (´• ω •`)ゞ Búscalo en tus canales por favor.');
+    return interaction.editReply(`Ya tienes un ticket abierto. Búscalo entre tus canales ${K.altiva()}`);
   }
+
+  // Crear canal privado con nombre corto
+  const suffix = Math.random().toString(36).slice(2, 6);
+  const channelName = `ticket-${suffix}`;
 
   let canal;
   try {
-    const nombre = interaction.user.username.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 20);
     canal = await readerGuild.channels.create({
-      name: `ticket-${nombre}`,
+      name: channelName,
       type: ChannelType.GuildText,
-      topic: `Ticket de error — ${interaction.user.username}`,
       permissionOverwrites: [
         { id: readerGuild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
-        { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
-        { id: interaction.client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+        { id: interaction.user.id,           allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+        { id: readerGuild.members.me.id,     allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ReadMessageHistory] },
       ],
     });
   } catch (err) {
-    return interaction.editReply(`Uhm... no pude crear el canal... (；￣ω￣) ${err.message}`);
+    logger.error('LumiAgent', `Error creando canal de ticket: ${err.message}`);
+    return interaction.editReply(`No pude crear el canal de ticket ${K.triste()}`);
   }
 
   sessions.set(canal.id, {
     type: 'ticket',
     step: 'awaitProyecto',
     data: {},
-    userId: interaction.user.id,
+    userId:  interaction.user.id,
     userTag: interaction.user.tag,
   });
 
-  await interaction.editReply(`¡L-listo! Canal creado aquí: <#${canal.id}> (✿◠‿◠)`);
+  await interaction.editReply(`✅ Canal creado: <#${canal.id}>`);
 
-  const proyectos = Projects.list().filter(p => p.active);
-  const lista = proyectos.map(p => `• ${p.name}`).join('\n') || 'Sin proyectos activos';
-
+  // ── Mensaje de bienvenida al ticket ──────────────────────────────────────
   await canal.send(
-    `H-hola <@${interaction.user.id}>... voy a intentar ayudarte a reportar el error (//∇//)\n\n` +
-    `¿Me podrías decir en qué proyecto está el problema? (〃ω〃)\n\n${lista}`
+    `<@${interaction.user.id}> ${K.social()}\n\n` +
+    `Así que encontraste un error. Bien, cuéntame. **¿En qué obra es el problema?**\n\n` +
+    `_(Escribe \`cancelar\` en cualquier momento si cambias de opinión)_`
   );
 }
 
@@ -92,47 +106,71 @@ async function continuarTicket(message, session) {
   const { step, data } = session;
   const texto = message.content.trim();
 
+  if (texto.toLowerCase() === 'cancelar') {
+    sessions.delete(message.channelId);
+    await message.reply(`Entendido. Cerrando ticket ${K.tranqui()}`);
+    setTimeout(() => message.channel.delete().catch(() => {}), 3000);
+    return;
+  }
+
   if (step === 'awaitProyecto') {
-    const proyectos = Projects.list().filter(p => p.active);
-    const match = proyectos.find(p =>
-      p.name.toLowerCase().includes(texto.toLowerCase()) ||
-      p.id.toLowerCase().includes(texto.toLowerCase())
+    const proyectos = Projects.list();
+    const match = proyectos.find(
+      p => p.name.toLowerCase().includes(texto.toLowerCase()) || p.id.includes(texto.toLowerCase())
     );
+
     if (!match) {
-      return message.reply('Uhm... no logré reconocer ese proyecto (´• ω •`)ゞ ¿Podrías escribir el nombre tal como aparece en la lista?');
+      return message.reply(
+        `No encontré ningún proyecto con ese nombre ${K.hartazgo()}\n` +
+        `Proyectos disponibles: ${proyectos.map(p => `\`${p.name}\``).join(', ')}`
+      );
     }
-    data.proyectoId = match.id;
-    data.proyectoName = match.name;
+
+    data.proyecto = match;
     session.step = 'awaitCapitulo';
-    return message.reply(`¿En qué capítulo encontraste el error? (solo pon el numerito, ej: \`15\`) (´＿｀。)`);
+    return message.reply(
+      `**${match.name}** ${K.altiva()} ¿En qué capítulo está el error? Escribe solo el número.`
+    );
   }
 
   if (step === 'awaitCapitulo') {
-    const num = texto.match(/\d+(?:[.,]\d+)?/);
-    if (!num) return message.reply('E-eh... no pude encontrar el número (〃>_<;〃) Por favor, escríbelo así: `15` o `15.5`');
-    data.capitulo = num[0];
-    session.step = 'awaitTipo';
+    const cap = texto.replace(/[^0-9]/g, '');
+    if (!cap) {
+      return message.reply(`Necesito el número del capítulo, no texto ${K.hartazgo()}`);
+    }
+    data.capitulo = cap;
+    session.step = 'awaitTipoError';
+
     return message.reply(
-      '¿Y... qué tipo de error es el que viste? (´；ω；`)\n\n' +
-      '`globos` — Globos en blanco\n' +
-      '`cortadas` — Tiras cortadas\n' +
-      '`desorden` — Páginas desordenadas\n' +
-      '`otro` — Otro problema'
+      `Capítulo **${cap}**. ¿Qué tipo de error es? Escribe uno de estos:\n\n` +
+      `\`globos\` — Globos en blanco\n` +
+      `\`cortadas\` — Tiras cortadas\n` +
+      `\`desorden\` — Páginas desordenadas\n` +
+      `\`otro\` — Otro tipo de problema`
     );
   }
 
-  if (step === 'awaitTipo') {
-    const t = texto.toLowerCase();
-    if (t.includes('globo'))         data.tipoError = 'globos';
-    else if (t.includes('corta'))    data.tipoError = 'cortadas';
-    else if (t.includes('desor'))    data.tipoError = 'desorden';
-    else                             data.tipoError = 'otro';
-    session.step = 'awaitDescripcion';
-    return message.reply('¿Te gustaría agregar alguna descripción o detalle extra? (si no, solo dime `no`) (っ˘ω˘ς)');
+  if (step === 'awaitTipoError') {
+    const tipo = texto.toLowerCase();
+    if (!TIPOS_ERROR[tipo]) {
+      return message.reply(
+        `Eso no es una opción válida ${K.hartazgo()} Usa \`globos\`, \`cortadas\`, \`desorden\` o \`otro\`.`
+      );
+    }
+    data.tipoError = TIPOS_ERROR[tipo];
+
+    if (tipo === 'otro') {
+      session.step = 'awaitDescripcion';
+      return message.reply(`Descríbeme el problema entonces. Sé específico ${K.altiva()}`);
+    }
+
+    session.step = 'done';
+    data.descripcion = null;
+    await enviarResumenTicket(message, session);
   }
 
   if (step === 'awaitDescripcion') {
-    data.descripcion = /^no$/i.test(texto) ? null : texto;
+    data.descripcion = texto;
     session.step = 'done';
     await enviarResumenTicket(message, session);
   }
@@ -141,35 +179,42 @@ async function continuarTicket(message, session) {
 async function enviarResumenTicket(message, session) {
   const { data, userId, userTag } = session;
 
-  // Embed para el canal del lector
   await message.channel.send(
-    `¡Listo! (ﾉ◕ヮ◕)ﾉ Ya le mandé tu reporte al equipo. Lo revisaremos pronto y te avisaremos por aquí mismo.`
+    `Tu reporte fue enviado al equipo ${K.social()} Lo revisaremos a la brevedad.`
   );
 
-  // Embed para el staff
-  const staffGuildId = process.env.DISCORD_GUILD_ID;
+  // Renombrar canal con datos reales
+  const capPadded = data.capitulo.padStart(3, '0');
+  const projectSlug = data.proyecto.id.slice(0, 20);
+  try {
+    await message.channel.setName(`ticket-${capPadded}-${projectSlug}`);
+  } catch { /* no crítico */ }
+
+  const staffGuildId   = process.env.DISCORD_GUILD_ID;
   const staffChannelId = process.env.RECORDS_CHANNEL_ID;
   if (!staffGuildId || !staffChannelId) return;
 
   try {
-    const staffGuild = await message.client.guilds.fetch(staffGuildId);
+    const staffGuild   = await message.client.guilds.fetch(staffGuildId);
     const staffChannel = await staffGuild.channels.fetch(staffChannelId).catch(() => null);
     if (!staffChannel) return;
+
+    const campos = [
+      { name: '📖 Obra',       value: data.proyecto.name,   inline: true },
+      { name: '📄 Capítulo',   value: `#${data.capitulo}`,  inline: true },
+      { name: '⚠️ Tipo',       value: data.tipoError,        inline: true },
+      { name: '👤 Reportado por', value: `${userTag} (<@${userId}>)`, inline: false },
+    ];
+
+    if (data.descripcion) {
+      campos.push({ name: '📝 Descripción', value: data.descripcion, inline: false });
+    }
 
     const embed = new EmbedBuilder()
       .setColor(COLORS.warning)
       .setTitle('🎫 Nuevo reporte de error')
-      .addFields(
-        { name: '👤 Reportado por', value: `${userTag} (<@${userId}>)`, inline: true },
-        { name: '📖 Proyecto',      value: data.proyectoName,           inline: true },
-        { name: '📄 Capítulo',      value: data.capitulo,               inline: true },
-        { name: '⚠️ Tipo de error', value: TIPOS_ERROR[data.tipoError], inline: true },
-      )
+      .addFields(campos)
       .setTimestamp();
-
-    if (data.descripcion) {
-      embed.addFields({ name: '📝 Descripción', value: data.descripcion });
-    }
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -180,7 +225,7 @@ async function enviarResumenTicket(message, session) {
       new ButtonBuilder()
         .setCustomId(`ticket_revision_${message.channelId}`)
         .setLabel('En revisión')
-        .setEmoji('🔄')
+        .setEmoji('👀')
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(`ticket_rechazado_${message.channelId}`)
@@ -189,12 +234,13 @@ async function enviarResumenTicket(message, session) {
         .setStyle(ButtonStyle.Danger),
     );
 
-    await staffChannel.send({ 
-      content: `<@&${MOD_ROLE_ID}>`, 
-      embeds: [embed], 
+    await staffChannel.send({
+      content: `<@&${MOD_ROLE_ID}>`,
+      embeds: [embed],
       components: [row],
       allowedMentions: { roles: [MOD_ROLE_ID] }
     });
+
   } catch (err) {
     logger.error('LumiAgent', `Error enviando ticket al staff: ${err.message}`);
   }
@@ -206,57 +252,62 @@ async function iniciarReclutamiento(interaction) {
 
   const readerGuildId = process.env.DISCORD_READER_GUILD_ID;
   if (!readerGuildId) {
-    return interaction.editReply('A-ay... no hay servidor de lectores configurado (´；ω；`)');
+    return interaction.editReply(`No encuentro la configuración del servidor de lectores ${K.triste()}`);
   }
 
   let readerGuild;
   try {
     readerGuild = await interaction.client.guilds.fetch(readerGuildId);
   } catch {
-    return interaction.editReply('P-perdón... no pude acceder al servidor de lectores (〃>_<;〃)');
+    return interaction.editReply(`No pude acceder al servidor de lectores ${K.triste()}`);
   }
 
-  // Verificar que no tenga una postulación abierta
   const yaAbierto = [...sessions.values()].find(
     s => s.type === 'reclu' && s.userId === interaction.user.id
   );
   if (yaAbierto) {
-    return interaction.editReply('Y-ya tienes una postulación en curso... búscala en tus canales porfa (´• ω •`)ゞ');
+    return interaction.editReply(`Ya tienes una postulación en curso ${K.altiva()}`);
   }
+
+  // Crear canal privado con nombre corto tipo r-01
+  const num = String(Math.floor(Math.random() * 99) + 1).padStart(2, '0');
+  const channelName = `r-${num}`;
 
   let canal;
   try {
-    const nombre = interaction.user.username.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 20);
     canal = await readerGuild.channels.create({
-      name: `postulacion-${nombre}`,
+      name: channelName,
       type: ChannelType.GuildText,
-      topic: `Postulación — ${interaction.user.username}`,
       permissionOverwrites: [
         { id: readerGuild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
-        { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
-        { id: interaction.client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+        { id: interaction.user.id,           allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+        { id: readerGuild.members.me.id,     allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ReadMessageHistory] },
       ],
     });
   } catch (err) {
-    return interaction.editReply(`Uhm... no pude crear el canal: ${err.message} (；￣ω￣)`);
+    logger.error('LumiAgent', `Error creando canal de reclutamiento: ${err.message}`);
+    return interaction.editReply(`No pude crear el canal de postulación ${K.triste()}`);
   }
 
   sessions.set(canal.id, {
     type: 'reclu',
     step: 'awaitRol',
     data: {},
-    userId: interaction.user.id,
+    userId:  interaction.user.id,
     userTag: interaction.user.tag,
   });
 
-  await interaction.editReply(`¡A-aquí está tu canal! <#${canal.id}> (✿◠‿◠)`);
+  await interaction.editReply(`✅ Canal creado: <#${canal.id}>`);
 
+  // ── Mensaje de bienvenida al reclutamiento ────────────────────────────────
   await canal.send(
-    `¡H-hola <@${interaction.user.id}>! (//>/<//) ¡M-muchas gracias por querer unirte a nuestro equipo!\n\n` +
-    `¿En qué te gustaría ayudarnos? (◕‿◕✿)\n\n` +
-    `\`typer\` — pone el texto bonito en las páginas\n` +
-    `\`cleaner\` — limpia y redibuja las cositas que estorban\n` +
-    `\`traductor\` — traduce desde inglés o coreano`
+    `<@${interaction.user.id}> ${K.altiva()}\n\n` +
+    `Así que quieres unirte al equipo de **Aeternum Translations**. Bien.\n\n` +
+    `Voy a necesitar que seas claro desde el principio. **¿En qué área te especializas?**\n\n` +
+    `\`typer\` — Pone el texto en las páginas\n` +
+    `\`cleaner\` — Limpieza y redibujado\n` +
+    `\`traductor\` — Traducción desde otro idioma\n\n` +
+    `_(Escribe \`cancelar\` si cambias de opinión)_`
   );
 }
 
@@ -264,21 +315,34 @@ async function continuarReclutamiento(message, session) {
   const { step, data } = session;
   const texto = message.content.trim().toLowerCase();
 
+  if (texto === 'cancelar') {
+    sessions.delete(message.channelId);
+    await message.reply(`Entendido ${K.altiva()} Canal cerrado.`);
+    setTimeout(() => message.channel.delete().catch(() => {}), 3000);
+    return;
+  }
+
   if (step === 'awaitRol') {
     if (texto.includes('type'))        data.rol = 'Typer';
     else if (texto.includes('clean'))  data.rol = 'Cleaner';
     else if (texto.includes('tradu'))  data.rol = 'Traductor';
     else {
-      return message.reply('E-esto... no logré entender qué rol dijiste (；￣ω￣) Podrías escribir `typer`, `cleaner` o `traductor`, por favor?');
+      return message.reply(
+        `No entendí lo que escribiste ${K.hartazgo()} Escribe \`typer\`, \`cleaner\` o \`traductor\`.`
+      );
     }
 
     if (data.rol === 'Traductor') {
       session.step = 'awaitIdioma';
-      return message.reply('¡Qué bien! (ﾉ´ヮ`)ﾉ*: ･ﾟ ¿Traduces desde inglés o desde coreano?');
+      return message.reply(
+        `Traductor ${K.altiva()} ¿Desde qué idioma? Escribe \`inglés\` o \`coreano\`.`
+      );
     }
 
     session.step = 'awaitExperiencia';
-    return message.reply(`¿Y ya tienes experiencia haciendo de ${data.rol}? (solo dime \`sí\` o \`no\`) (っ˘ω˘ς)`);
+    return message.reply(
+      `${data.rol} ${K.altiva()} ¿Tienes experiencia previa? (escribe \`sí\` o \`no\`)`
+    );
   }
 
   if (step === 'awaitIdioma') {
@@ -287,10 +351,14 @@ async function continuarReclutamiento(message, session) {
     } else if (texto.includes('corean') || texto.includes('korean')) {
       data.idioma = 'Coreano';
     } else {
-      return message.reply('Perdón... sigo sin entender (´• ω •`)ゞ ¿es inglés o coreano?');
+      return message.reply(
+        `Eso no es una opción válida ${K.hartazgo()} Escribe \`inglés\` o \`coreano\`.`
+      );
     }
     session.step = 'awaitExperiencia';
-    return message.reply('¿Y ya tienes experiencia previa como Traductor? (solo dime \`sí\` o \`no\`) (っ˘ω˘ς)');
+    return message.reply(
+      `${data.idioma} ${K.altiva()} ¿Tienes experiencia previa como Traductor? (\`sí\` o \`no\`)`
+    );
   }
 
   if (step === 'awaitExperiencia') {
@@ -304,7 +372,7 @@ async function enviarResumenReclutamiento(message, session) {
   const { data, userId, userTag } = session;
 
   await message.channel.send(
-    `¡T-todo listo! (✿◠‿◠) Ya le pasé tus datos al equipo. Lo revisaremos y te diremos algo prontito por aquí mismo.`
+    `Datos recibidos ${K.social()} El equipo revisará tu postulación y te responderá por aquí.`
   );
 
   const staffGuildId   = process.env.DISCORD_GUILD_ID;
@@ -325,7 +393,7 @@ async function enviarResumenReclutamiento(message, session) {
 
     const embed = new EmbedBuilder()
       .setColor(COLORS.info)
-      .setTitle('📝 Nueva postulación')
+      .setTitle('✨ Nueva postulación')
       .addFields(campos)
       .setTimestamp();
 
@@ -361,13 +429,12 @@ async function enviarResumenReclutamiento(message, session) {
 // ── Handler de botones del staff ──────────────────────────────────────────────
 async function handleStaffButton(interaction) {
   if (!isMod(interaction.member)) {
-    return interaction.reply({ content: '❌ Solo los moderadores pueden usar estos botones.', ephemeral: true });
+    return interaction.reply({ content: `Solo los moderadores pueden usar estos botones ${K.altiva()}`, ephemeral: true });
   }
 
   const id = interaction.customId;
   const readerGuildId = process.env.DISCORD_READER_GUILD_ID;
 
-  // Determinar tipo, resultado y channelId del lector
   let tipo, resultado, canalLectorId;
 
   if (id.startsWith('ticket_')) {
@@ -386,25 +453,23 @@ async function handleStaffButton(interaction) {
     return;
   }
 
-  // Mensajes de DM según resultado
+  // Mensajes de DM según resultado — con la personalidad de Lumi
   const mensajesDM = {
     ticket: {
-      corregido: '¡H-hola! (ﾉ◕ヮ◕)ﾉ Solo pasaba a avisarte que tu reporte fue procesado y el error ya se arregló. ¡Muchísimas gracias por avisarnos!',
-      revision:  'Uhmm... tu reporte está siendo revisado por el equipo (´• ω •`) Te diremos cuando sepamos algo.',
-      rechazado: 'P-perdón... (〃>_<;〃) Revisamos tu reporte pero no pudimos encontrar el error o tal vez no aplica esta vez. Pero ¡muchas gracias por intentar ayudarnos!',
+      corregido: `${K.social()} Solo pasaba a avisarte que tu reporte fue procesado y el error ya fue corregido. Gracias por tomarte el tiempo de reportarlo.`,
+      revision:  `Tu reporte está siendo revisado por el equipo ${K.tranqui()} Te avisaremos cuando tengamos una respuesta.`,
+      rechazado: `Revisamos tu reporte pero no pudimos confirmar el error o no aplica en este caso ${K.altiva()} Aun así, se agradece que te hayas molestado en reportarlo.`,
     },
     reclu: {
-      aceptado:  '¡F-felicitaciones! (//∇//) ¡Aceptamos tu postulación! Alguien del staff te escribirá muy prontito para darte la bienvenida.',
-      revision:  '¡Hola de nuevo! (っ˘ω˘ς) Solo quería decirte que tu postulación está en revisión... cruza los dedos.',
-      rechazado: 'A-ay... lo siento muchísimo (´；ω；`) Por ahora no podemos invitarte a entrar al equipo, pero esperamos que te animes a intentarlo en el futuro...',
+      aceptado:  `Tu postulación fue aceptada ${K.sonrojo()} Alguien del equipo se pondrá en contacto contigo pronto para darte los detalles.`,
+      revision:  `Tu postulación está siendo evaluada ${K.tranqui()} Te pedimos paciencia mientras el equipo delibera.`,
+      rechazado: `Por ahora no podemos incorporarte al equipo ${K.altiva()} No significa que no seas capaz — simplemente no es el momento. Puedes intentarlo de nuevo en el futuro.`,
     },
   };
 
-  // Obtener sesión para saber el userId
   const session = sessions.get(canalLectorId);
   const userId = session?.userId;
 
-  // Enviar DM al usuario
   if (userId) {
     try {
       const user = await interaction.client.users.fetch(userId);
@@ -414,62 +479,48 @@ async function handleStaffButton(interaction) {
     }
   }
 
-  // Actualizar el embed del staff (deshabilitar botones)
   const nuevoEmbed = EmbedBuilder.from(interaction.message.embeds[0])
     .setColor(
       resultado === 'corregido' || resultado === 'aceptado' ? COLORS.success :
       resultado === 'rechazado' ? COLORS.error : COLORS.warning
+    );
+
+  const row = new ActionRowBuilder().addComponents(
+    ...interaction.message.components[0].components.map(btn =>
+      ButtonBuilder.from(btn).setDisabled(true)
     )
-    .setFooter({ text: `Marcado como "${resultado}" por ${interaction.user.tag}` });
+  );
 
-  await interaction.update({ embeds: [nuevoEmbed], components: [] });
+  const etiquetas = {
+    corregido: '✅ Corregido',
+    revision:  '👀 En revisión',
+    rechazado: '❌ Rechazado / No aplica',
+    aceptado:  '✅ Aceptado',
+  };
 
-  // Eliminar canal en lectores si es resultado final
-  const esFinal = resultado !== 'revision';
-  if (esFinal && readerGuildId && canalLectorId) {
-    try {
-      const readerGuild = await interaction.client.guilds.fetch(readerGuildId);
-      const canal = await readerGuild.channels.fetch(canalLectorId).catch(() => null);
-      if (canal) {
-        await canal.send(`V-voy a cerrar este canal en 10 segunditos... ¡muchas gracias por tu ayuda! (✿◠‿◠)`);
-        setTimeout(() => canal.delete().catch(() => {}), 10_000);
-      }
-    } catch (err) {
-      logger.warn('LumiAgent', `No pude eliminar canal ${canalLectorId}: ${err.message}`);
-    }
-    sessions.delete(canalLectorId);
-  }
+  await interaction.update({
+    embeds: [nuevoEmbed.setFooter({ text: etiquetas[resultado] || resultado })],
+    components: [row],
+  });
 }
 
-// ── Evento messageCreate ──────────────────────────────────────────────────────
+// ── Evento principal ──────────────────────────────────────────────────────────
 module.exports = {
   name: Events.MessageCreate,
 
-  async execute(message) {
-    if (message.author.bot) return;
-    if (!message.guild) return;
-
-    // Solo actuar en canales con sesión activa (tickets y reclutamiento)
-    const session = sessions.get(message.channelId);
-    if (!session || session.step === 'done') return;
-
-    // Solo el usuario dueño de la sesión puede avanzar el flujo
-    if (message.author.id !== session.userId) return;
-
-    try {
-      if (session.type === 'ticket') {
-        await continuarTicket(message, session);
-      } else if (session.type === 'reclu') {
-        await continuarReclutamiento(message, session);
-      }
-    } catch (err) {
-      logger.error('LumiAgent', `Error en flujo ${session.type}: ${err.message}`);
-      await message.reply('O-ocurrió un error intentando entender tu respuesta... ¿puedes intentar de nuevo? (；￣ω￣)').catch(() => {});
-    }
-  },
-
-  // Exportar funciones para interactionCreate
   iniciarTicket,
   iniciarReclutamiento,
   handleStaffButton,
+
+  async execute(message) {
+    if (message.author.bot) return;
+    if (!message.guild)     return;
+
+    const session = sessions.get(message.channelId);
+    if (!session) return;
+    if (message.author.id !== session.userId) return;
+
+    if (session.type === 'ticket') return continuarTicket(message, session);
+    if (session.type === 'reclu')  return continuarReclutamiento(message, session);
+  },
 };

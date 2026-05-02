@@ -4,23 +4,15 @@
 const {
   SlashCommandBuilder,
   EmbedBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  ChannelSelectMenuBuilder,
-  StringSelectMenuBuilder,
   ChannelType,
 } = require('discord.js');
 
 const { Projects } = require('../utils/storage');
-const { COLORS, REACTIONS } = require('../../config/config');
+const { COLORS } = require('../../config/config');
 const monitor = require('../services/monitor');
 const fs   = require('fs-extra');
-const path = require('path');
 
 // ── Config persistente ────────────────────────────────────────────────────────
-// En Railway no hay .env en disco, así que guardamos los cambios de canal
-// en data/bot_config.json y los leemos con prioridad sobre process.env
 const BOT_CONFIG_FILE = './data/bot_config.json';
 
 function loadBotConfig() {
@@ -35,11 +27,9 @@ function saveBotConfig(key, value) {
   const cfg = loadBotConfig();
   cfg[key] = value;
   fs.writeJsonSync(BOT_CONFIG_FILE, cfg, { spaces: 2 });
-  // También actualizar process.env para que surta efecto inmediato
   process.env[key] = value;
 }
 
-// Llamar esto al arrancar el bot para cargar la config guardada
 function applyBotConfig() {
   const cfg = loadBotConfig();
   for (const [key, value] of Object.entries(cfg)) {
@@ -101,7 +91,6 @@ const data = new SlashCommandBuilder()
           .setRequired(true)
       )
   )
-
   .addSubcommand(sub =>
     sub.setName('estancado')
       .setDescription('Configura días de alerta de capítulos estancados para un proyecto')
@@ -114,16 +103,6 @@ const data = new SlashCommandBuilder()
           .setRequired(true)
           .setMinValue(0)
           .setMaxValue(60)
-      )
-  )
-  .addSubcommand(sub =>
-    sub.setName('raws')
-      .setDescription('Configura el canal donde se suben los zips de raws')
-      .addChannelOption(o =>
-        o.setName('canal')
-          .setDescription('Canal donde el staff sube los archivos .zip de raws')
-          .addChannelTypes(ChannelType.GuildText)
-          .setRequired(true)
       )
   )
   .addSubcommand(sub =>
@@ -145,7 +124,6 @@ async function autocomplete(interaction) {
 // ── Execute ───────────────────────────────────────────────────────────────────
 
 async function execute(interaction) {
-  // Solo admins
   if (!interaction.member.permissions.has('ManageGuild')) {
     return interaction.reply({
       content: '❌ Necesitas el permiso **Gestionar Servidor** para usar `/configurar`.',
@@ -155,15 +133,13 @@ async function execute(interaction) {
 
   const sub = interaction.options.getSubcommand();
 
-  if (sub === 'canal')        return handleCanal(interaction);
-  if (sub === 'reacciones')   return handleReacciones(interaction);
-  if (sub === 'rol')          return handleRol(interaction);
-  if (sub === 'verificar')    return handleVerificar(interaction);
-  if (sub === 'avisos')       return handleAvisos(interaction);
-  if (sub === 'registros')     return handleCanalEnv(interaction, 'RECORDS_CHANNEL_ID',           'registros generales');
-  if (sub === 'estancado')     return handleEstancado(interaction);
-  if (sub === 'raws')          return handleCanalEnv(interaction, 'RAWS_CHANNEL_ID', 'raws (subida de zips)');
-  if (sub === 'info')          return handleInfo(interaction);
+  if (sub === 'canal')      return handleCanal(interaction);
+  if (sub === 'reacciones') return handleReacciones(interaction);
+  if (sub === 'rol')        return handleRol(interaction);
+  if (sub === 'verificar')  return handleVerificar(interaction);
+  if (sub === 'avisos')     return handleAvisos(interaction);
+  if (sub === 'estancado')  return handleEstancado(interaction);
+  if (sub === 'info')       return handleInfo(interaction);
 }
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
@@ -173,7 +149,6 @@ async function handleCanal(interaction) {
   const projectId = interaction.options.getString('proyecto');
 
   if (projectId) {
-    // Canal específico para un proyecto
     const project = Projects.get(projectId);
     if (!project) {
       return interaction.reply({ content: `❌ Proyecto \`${projectId}\` no encontrado.`, ephemeral: true });
@@ -186,7 +161,6 @@ async function handleCanal(interaction) {
     });
   }
 
-  // Canal global — guardar en bot_config.json
   saveBotConfig('ANNOUNCEMENT_CHANNEL_ID', canal.id);
 
   const embed = new EmbedBuilder()
@@ -207,7 +181,6 @@ async function handleReacciones(interaction) {
     return interaction.reply({ content: `❌ Proyecto \`${projectId}\` no encontrado.`, ephemeral: true });
   }
 
-  // Parsear emojis (estándar y custom <:nombre:id>)
   const emojiRegex = /(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F|<a?:\w+:\d+>)/gu;
   const emojis = emojisRaw.match(emojiRegex) || [];
 
@@ -229,16 +202,13 @@ async function handleReacciones(interaction) {
 
 async function handleRol(interaction) {
   const projectId = interaction.options.getString('proyecto');
-  // El rol está en el servidor de LECTORES, no en el de staff.
-  // Por eso se acepta el ID como string (no se puede hacer @mention cross-server).
-  const rolId = interaction.options.getString('rol_id')?.trim() || null;
+  const rolId     = interaction.options.getString('rol_id')?.trim() || null;
 
   const project = Projects.get(projectId);
   if (!project) {
     return interaction.reply({ content: `❌ Proyecto \`${projectId}\` no encontrado.`, ephemeral: true });
   }
 
-  // Validar que sea un ID numérico válido de Discord
   if (rolId && !/^\d{17,20}$/.test(rolId)) {
     return interaction.reply({
       content: '❌ El ID del rol no parece válido. Activa el Modo Desarrollador en Discord, luego clic derecho en el rol del servidor de lectores → **Copiar ID**.',
@@ -263,7 +233,7 @@ async function handleVerificar(interaction) {
 
   try {
     await monitor.forceCheck(interaction.client);
-    await interaction.editReply('✅ Verificación completada. Revisa el canal de anuncios si hay novedades.');
+    await interaction.editReply('✅ Verificación completada. Revisa el canal de registros si hay novedades.');
   } catch (err) {
     await interaction.editReply(`❌ Error durante la verificación: ${err.message}`);
   }
@@ -288,57 +258,35 @@ async function handleInfo(interaction) {
 
   const fmt = id => id ? `<#${id}>` : '`No configurado`';
 
-  const channel        = fmt(process.env.ANNOUNCEMENT_CHANNEL_ID);
-  const noticeStaff    = fmt(process.env.STAFF_NOTICE_ID);
-  const noticeReader   = fmt(process.env.NOTICE_CHANNEL_ID);
-  const canalRegistros = fmt(process.env.RECORDS_CHANNEL_ID);
-  const canalRaws      = fmt(process.env.RAWS_CHANNEL_ID);
-
   const embed = new EmbedBuilder()
     .setColor(COLORS.info)
     .setTitle('⚙️ Configuración del bot')
     .addFields(
-      { name: '📢 Anuncios',          value: channel,        inline: true },
-      { name: '📣 Avisos staff',      value: noticeStaff,    inline: true },
-      { name: '📣 Avisos lectores',   value: noticeReader,   inline: true },
-      { name: '📁 Registros',         value: canalRegistros, inline: true },
-      { name: '📦 Raws (zips)',       value: canalRaws,      inline: true },
-      { name: '📊 Proyectos',         value: `${projects.length} total · ${active} activos`, inline: true },
-      { name: '⏱️ Check interval',    value: `Cada ${process.env.CHECK_INTERVAL_MINUTES || 25} min`, inline: true },
-      { name: '🕐 Zona horaria',      value: process.env.TIMEZONE || 'America/Bogota', inline: true },
-      { name: '📦 Node.js',           value: process.version, inline: true },
+      { name: '📢 Anuncios',        value: fmt(process.env.ANNOUNCEMENT_CHANNEL_ID), inline: true },
+      { name: '📣 Avisos staff',    value: fmt(process.env.STAFF_NOTICE_ID),          inline: true },
+      { name: '📣 Avisos lectores', value: fmt(process.env.NOTICE_CHANNEL_ID),        inline: true },
+      { name: '📁 Registros',       value: fmt(process.env.RECORDS_CHANNEL_ID),       inline: true },
+      { name: '📊 Proyectos',       value: `${projects.length} total · ${active} activos`, inline: true },
+      { name: '⏱️ Check interval',  value: `Cada ${process.env.CHECK_INTERVAL_MINUTES || 25} min`, inline: true },
+      { name: '🕐 Zona horaria',    value: process.env.TIMEZONE || 'America/Bogota',  inline: true },
+      { name: '📦 Node.js',         value: process.version,                           inline: true },
     )
     .addFields({
       name: '🔧 Comandos disponibles',
       value:
         '`/proyecto add/remove/list/info/toggle/setstatus`\n' +
         '`/status [proyecto]`\n' +
-        '`/configurar canal/reacciones/rol/avisos/registros/raws/estancado/verificar/info`\n' +
-        '`/buscar <nombre> <fuente>` · `/anunciar` · `/avisar` · `/salud` · `/raws espacio/eliminar`',
+        '`/configurar canal/reacciones/rol/avisos/estancado/verificar/info`\n' +
+        '`/anunciar` · `/avisar` · `/salud` · `/moderar`',
     })
     .setTimestamp();
 
   await interaction.reply({ embeds: [embed], ephemeral: true });
 }
 
-// ── Handler genérico para canales de entorno ─────────────────────────────────
-async function handleCanalEnv(interaction, envKey, label) {
-  const canal = interaction.options.getChannel('canal');
-
-  // Guardar en data/bot_config.json (persiste entre reinicios en Railway)
-  saveBotConfig(envKey, canal.id);
-
-  await interaction.reply({
-    content: `✅ Canal de **${label}** actualizado a ${canal} y guardado. El cambio persistirá al reiniciar.`,
-    ephemeral: true,
-  });
-}
-
-// ── Handler estancado ─────────────────────────────────────────────────────────
 async function handleEstancado(interaction) {
   const projectId = interaction.options.getString('proyecto');
   const dias      = interaction.options.getInteger('dias');
-  const { Projects } = require('../utils/storage');
 
   const project = Projects.get(projectId);
   if (!project) {

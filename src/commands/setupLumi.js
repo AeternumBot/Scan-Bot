@@ -1,14 +1,21 @@
 // src/commands/setupLumi.js
-const { 
-  SlashCommandBuilder, EmbedBuilder, 
-  ActionRowBuilder, ButtonBuilder, 
-  ButtonStyle, PermissionFlagsBits 
+const {
+  SlashCommandBuilder, EmbedBuilder,
+  ActionRowBuilder, ButtonBuilder,
+  ButtonStyle, PermissionFlagsBits
 } = require('discord.js');
 const { COLORS } = require('../../config/config');
 
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+const K = {
+  altiva:  () => pick(['(￣^￣)', '( ¬ _ ¬ )', '(๑˘ ᵕ ˘)', '( -_ -)✧', '( ≖.≖)', '(¬‿¬)']),
+  social:  () => pick(['(｡･ω･)ﾉﾞ', '( ´ ▽ ` )b', '(ㅅ´ ˘ `)', '(◡‿◡✿)', '(●´ω`●)']),
+  sonrojo: () => pick(['(///￣ ￣///)', '(>///<)', '(〃////〃)', '(≧///≦)', '(#^.^#)']),
+};
+
 const data = new SlashCommandBuilder()
   .setName('setuplumi')
-  .setDescription('Despliega los paneles interactivos de Lumi')
+  .setDescription('Despliega los paneles interactivos de Lumi Nums')
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
   .addSubcommand(sub =>
     sub.setName('tickets')
@@ -23,13 +30,19 @@ async function execute(interaction) {
   const sub = interaction.options.getSubcommand();
 
   if (sub === 'tickets') {
+    // ── Panel de reporte de errores ───────────────────────────────────────
     const embed = new EmbedBuilder()
       .setColor(COLORS.warning)
-      .setTitle('🎫 ¡A-ayuda! Reportar un Error')
+      .setTitle('🎫 Reporte de Errores')
       .setDescription(
-        'E-esto... hola... (〃>_<;〃) Si encontraste algún problemita en los capítulos, como globos vacíos o páginas que se ven cortadas, ¡por favor avísame!\n\n' +
-        'No quiero que nadie tenga una mala experiencia leyendo... (´；ω；`) Así que si presionas el botón de abajo, voy a crear un canal privado para que me cuentes qué pasó y lo arreglemos juntitos (◕‿◕✿)'
-      );
+        '¿Encontraste algo que no está bien en algún capítulo? Globos vacíos, páginas cortadas, texto mal colocado...\n\n' +
+        'Los errores existen para ser corregidos. No los ignores.\n\n' +
+        '**Presiona el botón** y abre un reporte. Te haré algunas preguntas para entender el problema correctamente. ' +
+        'Si me das la información que necesito, el equipo puede actuar de inmediato.\n\n' +
+        '*No es complicado. Solo requiere un mínimo de atención.*'
+      )
+      .setImage('https://files.catbox.moe/vq9tn6.gif')
+      .setFooter({ text: 'Aeternum Translations — Reportes' });
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -40,23 +53,28 @@ async function execute(interaction) {
     );
 
     await interaction.channel.send({ embeds: [embed], components: [row] });
-    return interaction.reply({ 
-      content: 'L-listo... panel de tickets desplegado... (*ノωノ)', 
-      ephemeral: true 
+    return interaction.reply({
+      content: `Panel de tickets desplegado ${K.altiva()}`,
+      ephemeral: true
     });
   }
 
   if (sub === 'reclutamiento') {
+    // ── Panel de reclutamiento ─────────────────────────────────────────────
     const embed = new EmbedBuilder()
       .setColor(COLORS.info)
-      .setTitle('📝 Únete al equipo de Aeternum Translations')
+      .setTitle('✨ Únete al Equipo — Aeternum Translations')
       .setDescription(
-        'E-eh... ¿Te gustaría formar parte de nuestro equipo? (//>/<//) Estamos buscando personas amables para ayudarnos:\n\n' +
-        '▸ **Typer** — pone el texto bonito en las páginas\n' +
-        '▸ **Cleaner** — limpia y redibuja las cositas que estorban\n' +
-        '▸ **Traductor** — traduce desde inglés o coreano para que todos entendamos\n\n' +
-        '¡N-no necesitas experiencia previa! Solo muchas ganas de aprender (っ˘ω˘ς) Presiona el botón y te haré algunas preguntitas rápidas...'
-      );
+        'Estamos buscando personas que se tomen su trabajo en serio. Si tienes habilidades y disposición para aprender, esto puede ser para ti.\n\n' +
+        '**Roles disponibles:**\n' +
+        '▸ **Typer** — Coloca el texto traducido en las páginas con precisión\n' +
+        '▸ **Cleaner** — Limpieza, redibujado y preparación de páginas\n' +
+        '▸ **Traductor** — Traducción desde inglés o coreano\n\n' +
+        'No exigimos experiencia previa — pero sí exigimos compromiso.\n\n' +
+        '**Presiona el botón** si estás dispuesto a ser parte de algo que vale la pena.'
+      )
+      .setImage('https://files.catbox.moe/d94w8i.gif')
+      .setFooter({ text: 'Aeternum Translations — Reclutamiento' });
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -67,9 +85,9 @@ async function execute(interaction) {
     );
 
     await interaction.channel.send({ embeds: [embed], components: [row] });
-    return interaction.reply({ 
-      content: '¡Y-ya puse el panel de reclutamiento! Espero que se una mucha gente linda... (✿◠‿◠)', 
-      ephemeral: true 
+    return interaction.reply({
+      content: `Panel de reclutamiento desplegado ${K.social()}`,
+      ephemeral: true
     });
   }
 }

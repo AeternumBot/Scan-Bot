@@ -286,7 +286,12 @@ async function handleInfo(interaction) {
   // Obtener estado de Drive
   const driveStatus = await driveService.getProjectStatus(project.driveFolder, project.category);
   const driveLine = driveStatus.found
-    ? driveService.buildStatusLine(driveStatus.subfolders)
+    ? [
+      `📁 [Abrir en Drive](${driveStatus.folderUrl})`,
+      `📦 Capítulos: **${driveStatus.totalCaps}**`,
+      driveStatus.summary.withFinal ? `✅ Finales: ${driveStatus.summary.withFinal}` : null,
+      driveStatus.summary.withUploaded ? `🟢 Subidos: ${driveStatus.summary.withUploaded}` : null,
+    ].filter(Boolean).join('\n')
     : `❓ Carpeta no encontrada: \`${project.driveFolder}\``;
 
   const statusIcon = { ongoing: '📖 En curso', completed: '✅ Completado', hiatus: '⏸️ Hiatus', dropped: '❌ Dropeado' };

@@ -17,10 +17,11 @@ if (missing.length) {
 }
 
 // ── Crear cliente de Discord ──────────────────────────────────────────────────
-// Sin MessageContent ni GuildMessages — ya no hay agente ni scraping de menciones
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,    // necesario para leer mensajes del ticket/reclutamiento
+    GatewayIntentBits.MessageContent,   // necesario para leer el contenido de los mensajes
   ],
   partials: [Partials.Message, Partials.Reaction, Partials.User],
 });
@@ -47,12 +48,17 @@ const eventFiles = fs.readdirSync(eventsPath).filter(f => f.endsWith('.js'));
 
 for (const file of eventFiles) {
   const event = require(path.join(eventsPath, file));
+  // Ignorar archivos que no tienen la estructura de evento (name + execute)
+  if (!event.name || typeof event.execute !== 'function') {
+    logger.warn('Loader', `Archivo de evento inválido o sin estructura: ${file}`);
+    continue;
+  }
   if (event.once) {
     client.once(event.name, (...args) => event.execute(...args));
   } else {
     client.on(event.name, (...args) => event.execute(...args));
   }
-  logger.info('Loader', `Evento cargado: ${event.name}`);
+  logger.info('Loader', `Evento cargado: ${event.name} (${file})`);
 }
 
 // ── Manejo de errores globales ────────────────────────────────────────────────

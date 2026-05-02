@@ -120,7 +120,7 @@ async function sendSingleStatus(interaction, project, forceRefresh = false) {
     { name: 'Activo',    value: project.active ? '✅ Sí' : '🔴 No',  inline: true },
   );
 
-  embed.setFooter({ text: 'Aquí está todo lo que encontré (っ˘ω˘ς)' });
+  embed.setFooter({ text: 'Estado actual del proyecto' });
   await interaction.editReply({ embeds: [embed] });
 }
 
@@ -155,7 +155,7 @@ async function sendAllStatus(interaction, forceRefresh = false) {
     .setTitle('📊 Proyectos activos — Estado general')
     .setDescription(lines.join('\n\n').slice(0, 4000))
     .setTimestamp()
-    .setFooter({ text: 'Revisé todo con mucho cuidado (っ˘ω˘ς) · /status <proyecto> para más detalles' });
+    .setFooter({ text: 'Resumen de proyectos activos · /status <proyecto> para detalles' });
 
   await interaction.editReply({ content: null, embeds: [embed] });
 }
